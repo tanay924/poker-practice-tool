@@ -2,7 +2,7 @@
 
 A local-only heads-up NLHE trainer for offline study.
 
-The MVP lets you play simplified 100bb SB-vs-BB single-raised pots, save completed hands, submit background analysis jobs, keep playing while jobs run, and review answer sheets later.
+The MVP lets you drill bundled 100bb HU preflop ranges, play simplified 100bb SB-vs-BB single-raised pots, save completed hands, submit background analysis jobs, keep playing while jobs run, and review answer sheets later.
 
 ## Safety Boundary
 
@@ -108,6 +108,7 @@ npm run dev
 ## Pages
 
 - `/play`: play a simplified HU hand, save it, and request analysis.
+- `/preflop`: practice bundled 100bb HU opening ranges through the available 3-bet decision tree.
 - `/analysis`: list queued, solving, ready, failed, and unsupported jobs.
 - `/analysis/:handId`: view the mock-solver answer sheet.
 - `/ranges`: import and inspect JSON preflop ranges.
@@ -149,5 +150,6 @@ Frontend:
 
 ```powershell
 cd C:\Users\tanay\Documents\Playground\poker-practice-tool\frontend
+npm run test:preflop
 npm run build
 ```
