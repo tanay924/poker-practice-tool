@@ -159,7 +159,23 @@ if (-not (Test-Path $workerExe)) {
     throw "Build finished but shark_worker.exe was not found at $workerExe"
 }
 
+$mingwBin = Split-Path (Get-Command "g++.exe").Source -Parent
+$runtimeDlls = @(
+    "libgcc_s_seh-1.dll",
+    "libstdc++-6.dll",
+    "libtbb12.dll",
+    "libwinpthread-1.dll"
+)
+foreach ($dll in $runtimeDlls) {
+    $sourceDll = Join-Path $mingwBin $dll
+    if (-not (Test-Path $sourceDll)) {
+        throw "Build succeeded, but required runtime DLL is missing: $sourceDll"
+    }
+    Copy-Item -LiteralPath $sourceDll -Destination (Join-Path $buildDir $dll) -Force
+}
+
 Write-Host "Built Shark worker: $workerExe"
+Write-Host "Copied MinGW runtime DLLs into: $buildDir"
 Write-Host "Use it with:"
 Write-Host "`$env:POKER_TRAINER_SOLVER='shark'"
 Write-Host "`$env:POKER_TRAINER_SHARK_PATH='$workerExe'"
