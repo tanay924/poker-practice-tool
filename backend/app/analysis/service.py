@@ -17,6 +17,15 @@ from app.solver.factory import create_solver_from_env
 def create_analysis_job(db: Session, hand_id: int) -> AnalysisJob:
     existing = db.query(AnalysisJob).filter(AnalysisJob.hand_id == hand_id).first()
     if existing:
+        if existing.status in {"failed", "unsupported"}:
+            existing.status = "queued"
+            existing.started_at = None
+            existing.finished_at = None
+            existing.error = None
+            existing.solver_input_json = None
+            existing.solver_output_json = None
+            db.commit()
+            db.refresh(existing)
         return existing
 
     hand = db.get(Hand, hand_id)
@@ -113,21 +122,21 @@ async def process_next_analysis_job(
         return job
     except UnsupportedAnalysisError as exc:
         job.status = "unsupported"
-        job.error = str(exc)
+        job.error = _exception_message(exc)
         job.finished_at = utc_now()
         db.commit()
         db.refresh(job)
         return job
     except SolverExecutionError as exc:
         job.status = "failed"
-        job.error = str(exc)
+        job.error = _exception_message(exc)
         job.finished_at = utc_now()
         db.commit()
         db.refresh(job)
         return job
     except Exception as exc:
         job.status = "failed"
-        job.error = str(exc)
+        job.error = _exception_message(exc)
         job.finished_at = utc_now()
         db.commit()
         db.refresh(job)
@@ -139,3 +148,10 @@ def _with_cache_hit(solver_output: dict[str, Any], *, hit: bool) -> dict[str, An
     metadata = output.setdefault("metadata", {})
     metadata["cache"] = {"hit": hit}
     return output
+
+
+def _exception_message(exc: Exception) -> str:
+    message = str(exc).strip()
+    if message:
+        return message
+    return type(exc).__name__
