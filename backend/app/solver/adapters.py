@@ -276,12 +276,18 @@ class SharkWorkerSolverAdapter:
             return self._process
 
         command = self._worker_command()
-        self._process = await asyncio.create_subprocess_exec(
-            *command,
-            stdin=asyncio.subprocess.PIPE,
-            stdout=asyncio.subprocess.PIPE,
-            stderr=asyncio.subprocess.PIPE,
-        )
+        try:
+            self._process = await asyncio.create_subprocess_exec(
+                *command,
+                stdin=asyncio.subprocess.PIPE,
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.PIPE,
+            )
+        except NotImplementedError as exc:
+            raise SolverExecutionError(
+                "This Windows event loop cannot start the Shark subprocess. "
+                "Run the backend without --reload when POKER_TRAINER_SOLVER=shark."
+            ) from exc
         return self._process
 
     def _worker_command(self) -> list[str]:

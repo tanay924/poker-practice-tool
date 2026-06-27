@@ -169,3 +169,20 @@ sys.exit(3)
         await adapter.close()
 
     asyncio.run(run())
+
+
+def test_shark_worker_adapter_explains_windows_reload_event_loop(monkeypatch: pytest.MonkeyPatch) -> None:
+    async def unsupported_subprocess(*args, **kwargs):
+        raise NotImplementedError()
+
+    monkeypatch.setattr(asyncio, "create_subprocess_exec", unsupported_subprocess)
+    adapter = SharkWorkerSolverAdapter(
+        SolverSettings(solver_name="shark", shark_worker_path="unused", shark_timeout_seconds=2),
+        command=["fake-shark-worker"],
+    )
+
+    async def run() -> None:
+        with pytest.raises(SolverExecutionError, match="without --reload"):
+            await adapter.solve({"hand_id": 1})
+
+    asyncio.run(run())

@@ -51,9 +51,13 @@ $env:POKER_TRAINER_SOLVER='mock'
 Accurate Shark mode is opt-in and never silently falls back to mock:
 
 ```powershell
+cd C:\Users\tanay\Documents\Playground\poker-practice-tool\backend
 $env:POKER_TRAINER_SOLVER='shark'
 $env:POKER_TRAINER_SHARK_PATH='C:\path\to\shark_worker.exe'
+python -m uvicorn app.main:app --host 127.0.0.1 --port 8000
 ```
+
+On Windows, do not run Shark mode with `uvicorn --reload`. The reload event loop can block Python subprocess support, which Shark needs for the resident worker process.
 
 Shark mode uses the documented Shark defaults unless overridden:
 
