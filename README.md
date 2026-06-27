@@ -111,7 +111,7 @@ npm run dev
 - `/preflop`: practice bundled 100bb HU opening ranges through the available 3-bet decision tree.
 - `/analysis`: list queued, solving, ready, failed, and unsupported jobs.
 - `/analysis/:handId`: view the mock-solver answer sheet.
-- `/ranges`: import and inspect JSON preflop ranges.
+- `/ranges`: inspect the five bundled 100bb HU preflop ranges as color-coded 13x13 range tables.
 
 ## Range JSON Format
 
