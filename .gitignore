@@ -7,6 +7,7 @@ venv/
 
 # Local SQLite runtime data
 backend/data/
+backend/logs/
 
 # Managed local Shark checkout/build output
 vendor/shark-2.0/
