@@ -2,7 +2,7 @@
 
 A local-only heads-up NLHE trainer for offline study.
 
-The MVP lets you play simplified 100bb SB-vs-BB single-raised pots, save completed hands, submit background mock-solver analysis jobs, keep playing while jobs run, and review answer sheets later.
+The MVP lets you play simplified 100bb SB-vs-BB single-raised pots, save completed hands, submit background analysis jobs, keep playing while jobs run, and review answer sheets later.
 
 ## Safety Boundary
 
@@ -18,7 +18,7 @@ This app is only for offline study:
 - Frontend: React, Vite, TypeScript
 - Backend: FastAPI, Python, SQLite
 - Background jobs: local worker loop inside the backend process
-- Solver: mock adapter now, Shark CLI adapter skeleton for later
+- Solver: deterministic mock by default, optional Shark v2.6.0 worker mode for accurate local analysis
 
 ## Run Backend
 
@@ -38,6 +38,46 @@ Health check:
 
 ```powershell
 Invoke-WebRequest http://127.0.0.1:8000/api/health -UseBasicParsing
+```
+
+## Solver Modes
+
+The app defaults to the mock solver for development:
+
+```powershell
+$env:POKER_TRAINER_SOLVER='mock'
+```
+
+Accurate Shark mode is opt-in and never silently falls back to mock:
+
+```powershell
+$env:POKER_TRAINER_SOLVER='shark'
+$env:POKER_TRAINER_SHARK_PATH='C:\path\to\shark_worker.exe'
+```
+
+Shark mode uses the documented Shark defaults unless overridden:
+
+- `POKER_TRAINER_SHARK_ITERATIONS=100`
+- `POKER_TRAINER_SHARK_MIN_EXPLOITABILITY_PCT=0.1`
+- `POKER_TRAINER_SHARK_ALL_IN_THRESHOLD=0.67`
+- `POKER_TRAINER_SHARK_THREAD_COUNT=<cpu cores - 1>`
+- `POKER_TRAINER_SHARK_FORCE_DONK_CHECK=true`
+
+Missing worker setup, incompatible worker version, missing ranges, unsupported lines, and worker failures produce `unsupported` or `failed` analysis jobs. They do not swap to mock.
+
+## Build Shark Worker
+
+The managed setup script clones the official `24parida/shark-2.0` release, checks that the latest release is still the pinned tag, patches weighted preflop range parsing, adds a headless `shark_worker` target, and builds it with MSYS2/MinGW:
+
+```powershell
+cd C:\Users\tanay\Documents\Playground\poker-practice-tool
+powershell -ExecutionPolicy Bypass -File .\tools\setup_shark_worker.ps1 -InstallMsys2
+```
+
+To prepare the source without building:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\tools\setup_shark_worker.ps1 -NoBuild
 ```
 
 ## Run Frontend
@@ -84,6 +124,13 @@ npm run dev
 ```
 
 Each hand's action frequencies must sum to `1.0`.
+
+Shark mode currently supports the MVP spot only and requires these imported 100bb ranges:
+
+- `HU_SRP_SB_OPEN_100BB`: SB opening range using `raise` frequencies.
+- `HU_SRP_BB_CALL_VS_SB_OPEN_100BB`: BB continuing range using `call` frequencies.
+
+Weighted actions are preserved when converted to Shark tokens. For example, `KQo` with `{ "call": 0.5, "fold": 0.5 }` becomes `KQo:0.5`.
 
 ## Tests And Builds
 

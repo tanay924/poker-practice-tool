@@ -343,6 +343,28 @@ th {
   padding: 14px;
 }
 
+.notice-box,
+.error-box {
+  border-radius: 8px;
+  margin-bottom: 14px;
+  padding: 14px;
+}
+
+.notice-box {
+  background: #fff8e8;
+  border: 1px solid #e6c675;
+}
+
+.error-box {
+  background: #fff0f1;
+  border: 1px solid #e0a5ac;
+}
+
+.notice-box p,
+.error-box p {
+  margin: 4px 0 0;
+}
+
 .decision-list {
   display: grid;
   gap: 14px;

@@ -30,6 +30,8 @@ export default function AnalysisDetailPage() {
   }
 
   const solverOutput = detail.job?.solver_output_json;
+  const solverMetadata = solverOutput?.metadata?.solver;
+  const solverLabel = solverMetadata ? formatSolverLabel(solverMetadata) : detail.job?.status === "ready" ? "Unknown" : "Pending";
 
   return (
     <section className="stack">
@@ -54,6 +56,10 @@ export default function AnalysisDetailPage() {
           <strong>{detail.job?.status ?? "not requested"}</strong>
         </div>
         <div>
+          <span className="label">Solver</span>
+          <strong>{solverLabel}</strong>
+        </div>
+        <div>
           <span className="label">Result</span>
           <strong>{String(detail.hand.result_json.reason ?? detail.hand.result_json.winner ?? "complete")}</strong>
         </div>
@@ -69,6 +75,12 @@ export default function AnalysisDetailPage() {
 
       <section className="panel">
         <h3>Postflop Solver Feedback</h3>
+        {(detail.job?.status === "unsupported" || detail.job?.status === "failed") && (
+          <div className={detail.job.status === "unsupported" ? "notice-box" : "error-box"}>
+            <span className="label">{detail.job.status === "unsupported" ? "Unsupported" : "Failed"}</span>
+            <p>{detail.job.error ?? "No solver detail was provided."}</p>
+          </div>
+        )}
         {!solverOutput && <p className="muted-text">Analysis is not ready yet.</p>}
         {solverOutput?.summary.largest_mistake && (
           <div className="mistake-box">
@@ -79,7 +91,14 @@ export default function AnalysisDetailPage() {
             </strong>
           </div>
         )}
-        {solverOutput?.summary.largest_mistake === null && <p className="muted-text">No large mock-solver mistake flagged.</p>}
+        {solverOutput?.summary.largest_mistake === null && <p className="muted-text">No large solver mistake flagged.</p>}
+        {solverOutput?.metadata && (
+          <p className="muted-text">
+            Source: {solverLabel}
+            {typeof solverOutput.metadata.duration_seconds === "number" ? ` - ${solverOutput.metadata.duration_seconds.toFixed(2)}s` : ""}
+            {solverOutput.metadata.cache ? ` - cache ${solverOutput.metadata.cache.hit ? "hit" : "miss"}` : ""}
+          </p>
+        )}
 
         <div className="decision-list">
           {solverOutput?.street_results.map((result, index) => (
@@ -120,4 +139,14 @@ export default function AnalysisDetailPage() {
       </section>
     </section>
   );
+}
+
+function formatSolverLabel(solver: { name: string; version?: string; commit?: string }) {
+  if (solver.name === "shark") {
+    return `Shark ${solver.version ?? ""}`.trim();
+  }
+  if (solver.name === "mock") {
+    return "Mock";
+  }
+  return [solver.name, solver.version].filter(Boolean).join(" ");
 }

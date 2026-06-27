@@ -8,6 +8,9 @@ venv/
 # Local SQLite runtime data
 backend/data/
 
+# Managed local Shark checkout/build output
+vendor/shark-2.0/
+
 # Node
 node_modules/
 frontend/dist/

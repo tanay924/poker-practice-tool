@@ -61,6 +61,19 @@ export interface SolverStreetResult {
 }
 
 export interface SolverOutput {
+  metadata?: {
+    solver?: {
+      name: string;
+      version?: string;
+      commit?: string;
+    };
+    config?: Record<string, unknown>;
+    range_hashes?: Record<string, string>;
+    duration_seconds?: number;
+    cache?: {
+      hit: boolean;
+    };
+  };
   street_results: SolverStreetResult[];
   summary: {
     overall: string;
