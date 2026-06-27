@@ -16,6 +16,8 @@ assert.equal(rangePresentationForSpot(PREFLOP_SPOTS.bbVsSbLimp).title, "BB versu
 
 assert.equal(actionPresentation("check").color, actionPresentation("limp").color);
 assert.equal(actionPresentation("limp").color, actionPresentation("call").color);
+assert.equal(actionPresentation("call").color, "#d09425");
+assert.equal(actionPresentation("raise").color, "#238b63");
 
 {
   const matrix = buildRangeMatrix(getRangeForSpot(PREFLOP_SPOTS.sbOpen));

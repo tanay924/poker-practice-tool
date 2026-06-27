@@ -25,11 +25,11 @@ export interface RangeSpotPresentation {
 
 const ACTION_PRESENTATION: Record<PreflopAction, { color: string; label: string }> = {
   allin: { color: "#7c3aed", label: "All-in" },
-  call: { color: "#238b63", label: "Call" },
-  check: { color: "#238b63", label: "Check" },
+  call: { color: "#d09425", label: "Call" },
+  check: { color: "#d09425", label: "Check" },
   fold: { color: "#c84b55", label: "Fold" },
-  limp: { color: "#238b63", label: "Limp" },
-  raise: { color: "#d09425", label: "Raise" }
+  limp: { color: "#d09425", label: "Limp" },
+  raise: { color: "#238b63", label: "Raise" }
 };
 
 const SPOT_PRESENTATION: Record<PreflopSpotId, RangeSpotPresentation> = {
