@@ -26,9 +26,9 @@ export interface RangeSpotPresentation {
 const ACTION_PRESENTATION: Record<PreflopAction, { color: string; label: string }> = {
   allin: { color: "#7c3aed", label: "All-in" },
   call: { color: "#238b63", label: "Call" },
-  check: { color: "#6f7d85", label: "Check" },
+  check: { color: "#238b63", label: "Check" },
   fold: { color: "#c84b55", label: "Fold" },
-  limp: { color: "#2f80c2", label: "Limp" },
+  limp: { color: "#238b63", label: "Limp" },
   raise: { color: "#d09425", label: "Raise" }
 };
 

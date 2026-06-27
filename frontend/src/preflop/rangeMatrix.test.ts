@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 
 import { getRangeForSpot, PREFLOP_SPOTS } from "./rangeData";
-import { buildRangeMatrix, handKeyForMatrixCell, rangePresentationForSpot } from "./rangeMatrix";
+import { actionPresentation, buildRangeMatrix, handKeyForMatrixCell, rangePresentationForSpot } from "./rangeMatrix";
 
 assert.equal(handKeyForMatrixCell(0, 0), "AA");
 assert.equal(handKeyForMatrixCell(12, 12), "22");
@@ -13,6 +13,9 @@ assert.equal(handKeyForMatrixCell(10, 8), "64o");
 assert.equal(rangePresentationForSpot(PREFLOP_SPOTS.sbOpen).title, "SB first action");
 assert.equal(rangePresentationForSpot(PREFLOP_SPOTS.bbVsSbOpen).title, "BB versus 2.5bb open");
 assert.equal(rangePresentationForSpot(PREFLOP_SPOTS.bbVsSbLimp).title, "BB versus limp");
+
+assert.equal(actionPresentation("check").color, actionPresentation("limp").color);
+assert.equal(actionPresentation("limp").color, actionPresentation("call").color);
 
 {
   const matrix = buildRangeMatrix(getRangeForSpot(PREFLOP_SPOTS.sbOpen));
