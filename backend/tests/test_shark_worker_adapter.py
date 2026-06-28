@@ -149,6 +149,48 @@ for line in sys.stdin:
     asyncio.run(run())
 
 
+def test_shark_worker_adapter_restarts_after_timeout(tmp_path: Path) -> None:
+    marker = tmp_path / "worker_starts.txt"
+    command = write_fake_worker(
+        tmp_path / "fake_worker.py",
+        f"""
+import json
+from pathlib import Path
+import sys
+import time
+
+with Path({str(marker)!r}).open("a", encoding="utf-8") as marker_file:
+    marker_file.write("started\\n")
+
+for line in sys.stdin:
+    msg = json.loads(line)
+    if msg["type"] == "version":
+        print(json.dumps({{"ok": True, "type": "version", "version": "v2.6.0", "commit": "c9dc07d"}}), flush=True)
+    elif msg["type"] == "health":
+        print(json.dumps({{"ok": True, "type": "health"}}), flush=True)
+    elif msg["type"] == "analyze_hand":
+        time.sleep(5)
+""",
+    )
+    adapter = SharkWorkerSolverAdapter(
+        SolverSettings(solver_name="shark", shark_worker_path="unused", shark_timeout_seconds=1),
+        command=command,
+    )
+
+    async def run() -> None:
+        with pytest.raises(SolverExecutionError, match="timed out"):
+            await adapter.solve({"hand_id": 1})
+        assert adapter._process is None
+        with pytest.raises(SolverExecutionError, match="timed out"):
+            await adapter.solve({"hand_id": 1})
+        assert adapter._process is None
+        assert marker.exists()
+        assert len(marker.read_text(encoding="utf-8").splitlines()) >= 2
+        await adapter.close()
+
+    asyncio.run(run())
+
+
 def test_shark_worker_adapter_reports_early_exit(tmp_path: Path) -> None:
     command = write_fake_worker(
         tmp_path / "fake_worker.py",

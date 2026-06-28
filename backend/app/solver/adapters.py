@@ -6,6 +6,7 @@ import hashlib
 import json
 from pathlib import Path
 import time
+from contextlib import suppress
 from typing import Any, Protocol
 
 from app.solver.config import SolverSettings
@@ -213,7 +214,8 @@ class SharkWorkerSolverAdapter:
             try:
                 await self._request({"type": "shutdown"})
             except Exception:
-                process.terminate()
+                await self._discard_process(process)
+                return
             try:
                 await asyncio.wait_for(process.wait(), timeout=2)
             except asyncio.TimeoutError:
@@ -254,8 +256,10 @@ class SharkWorkerSolverAdapter:
             try:
                 raw = await asyncio.wait_for(process.stdout.readline(), timeout=self.settings.shark_timeout_seconds)
             except asyncio.TimeoutError as exc:
+                await self._discard_process(process)
                 raise SolverExecutionError(
-                    f"Shark worker timed out after {self.settings.shark_timeout_seconds:g}s"
+                    f"Shark worker timed out after {self.settings.shark_timeout_seconds:g}s; "
+                    "the worker was restarted. This solve may be too large for the current local Shark tree."
                 ) from exc
 
             if not raw:
@@ -289,6 +293,24 @@ class SharkWorkerSolverAdapter:
                 "Run the backend without --reload when POKER_TRAINER_SOLVER=shark."
             ) from exc
         return self._process
+
+    async def _discard_process(self, process: asyncio.subprocess.Process) -> None:
+        if self._process is process:
+            self._process = None
+        self._version_info = None
+
+        if process.returncode is not None:
+            return
+
+        with suppress(ProcessLookupError):
+            process.terminate()
+        try:
+            await asyncio.wait_for(process.wait(), timeout=2)
+        except asyncio.TimeoutError:
+            with suppress(ProcessLookupError):
+                process.kill()
+            with suppress(ProcessLookupError):
+                await process.wait()
 
     def _worker_command(self) -> list[str]:
         if self.command is not None:
