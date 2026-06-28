@@ -504,7 +504,7 @@ function villainCanLeadStreet(state: TrainerState, street: Street): boolean {
     return false;
   }
   if (street === "flop") {
-    return true;
+    return false;
   }
 
   const previousStreet = street === "turn" ? "flop" : "turn";

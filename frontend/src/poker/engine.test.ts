@@ -117,6 +117,22 @@ const baseState: TrainerState = {
 
 {
   const hand = startNewHand({
+    heroCards: ["As", "Ah"],
+    villainCards: ["Kc", "9c"],
+    board: ["2d", "7h", "Jc", "4s", "Td"],
+    rng: fixedRng([0.5, 0.01])
+  });
+  const postflop = choose(hand, "raise");
+  const firstPostflopEntry = postflop.actionHistory.at(-1);
+
+  assert.equal(firstPostflopEntry?.street, "flop");
+  assert.equal(firstPostflopEntry?.actor, "BB");
+  assert.equal(firstPostflopEntry?.action, "check");
+  assert.equal(postflop.facingBet, false);
+}
+
+{
+  const hand = startNewHand({
     heroCards: ["As", "2s"],
     villainCards: ["Kc", "4c"],
     board: ["2d", "7h", "Jc", "4s", "Td"],
