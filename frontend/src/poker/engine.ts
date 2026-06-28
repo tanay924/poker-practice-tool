@@ -187,7 +187,7 @@ function enterStreet(state: TrainerState, street: Street): TrainerState {
     facingBetAmount: 0
   };
 
-  if (Math.random() < 0.28) {
+  if (villainCanLeadStreet(nextState, street) && Math.random() < 0.28) {
     const amount = sharkAmountForFraction(street === "flop" ? 1 : Math.random() < 0.5 ? 0.33 : 0.66, nextState.pot, nextState.villainStack);
     const villainAction = actionOption("bet", amount);
     return {
@@ -213,6 +213,25 @@ function advanceAfterClosedAction(state: TrainerState): TrainerState {
     return enterStreet(state, "river");
   }
   return finishHand(state, "showdown", "river_completed");
+}
+
+function villainCanLeadStreet(state: TrainerState, street: Street): boolean {
+  if (street === "flop") {
+    return true;
+  }
+
+  const previousStreet = street === "turn" ? "flop" : "turn";
+  return lastAggressor(state.actionHistory, previousStreet) === "BB";
+}
+
+function lastAggressor(actionHistory: ActionEntry[], street: Street): ActionEntry["actor"] | null {
+  let aggressor: ActionEntry["actor"] | null = null;
+  for (const entry of actionHistory) {
+    if (entry.street === street && (entry.action === "bet" || entry.action === "raise_to")) {
+      aggressor = entry.actor;
+    }
+  }
+  return aggressor;
 }
 
 function finishHand(state: TrainerState, winner: string, reason: string): TrainerState {

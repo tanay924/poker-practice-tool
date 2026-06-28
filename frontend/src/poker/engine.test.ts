@@ -63,4 +63,24 @@ const baseState: TrainerState = {
   assert.equal(actions.some((action) => action.action === "raise_to"), false);
 }
 
+{
+  const originalRandom = Math.random;
+  const randomValues = [0.5, 0.1, 0.1];
+  Math.random = () => randomValues.shift() ?? 0.9;
+  try {
+    const potBet = legalHeroActions(baseState).find((action) => action.action === "bet" && action.amountBb === 5);
+    assert.ok(potBet);
+
+    const turnState = applyHeroAction(baseState, potBet);
+    const turnEntry = turnState.actionHistory.at(-1);
+
+    assert.equal(turnEntry?.street, "turn");
+    assert.equal(turnEntry?.actor, "BB");
+    assert.equal(turnEntry?.action, "check");
+    assert.equal(turnState.facingBet, false);
+  } finally {
+    Math.random = originalRandom;
+  }
+}
+
 console.log("poker engine tests passed");
