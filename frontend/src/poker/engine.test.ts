@@ -4,8 +4,19 @@ import {
   applyHeroAction,
   formatActionEntry,
   legalHeroActions,
+  startNewHand,
   type TrainerState,
 } from "./engine";
+
+function fixedRng(values: number[]) {
+  return () => values.shift() ?? 0.99;
+}
+
+function choose(state: TrainerState, actionName: string) {
+  const action = legalHeroActions(state).find((candidate) => candidate.action === actionName);
+  assert.ok(action, `expected action ${actionName}`);
+  return applyHeroAction(state, action);
+}
 
 const baseState: TrainerState = {
   heroCards: ["As", "Kd"],
@@ -81,6 +92,104 @@ const baseState: TrainerState = {
   } finally {
     Math.random = originalRandom;
   }
+}
+
+{
+  const hand = startNewHand({
+    heroCards: ["As", "Ah"],
+    villainCards: ["Kc", "9c"],
+    board: ["2d", "7h", "Jc", "4s", "Td"],
+    rng: fixedRng([0.5])
+  });
+  const postflop = choose(hand, "raise");
+
+  assert.equal(postflop.street, "flop");
+  assert.equal(postflop.pot, 5);
+  assert.equal(postflop.heroStack, 97.5);
+  assert.equal(postflop.villainStack, 97.5);
+  assert.equal(postflop.actionHistory[0].spot_id, "HU_SB_OPEN_2_5BB_OR_LIMP_100BB");
+  assert.equal(postflop.actionHistory[0].hand_key, "AA");
+  assert.equal(postflop.actionHistory[0].frequency, 0.9);
+  assert.equal(postflop.actionHistory[0].automatic, false);
+  assert.equal(postflop.actionHistory[1].action, "call");
+  assert.equal(postflop.actionHistory[1].automatic, true);
+}
+
+{
+  const hand = startNewHand({
+    heroCards: ["As", "2s"],
+    villainCards: ["Kc", "4c"],
+    board: ["2d", "7h", "Jc", "4s", "Td"],
+    rng: fixedRng([0.99])
+  });
+  const postflop = choose(hand, "limp");
+
+  assert.equal(postflop.street, "flop");
+  assert.equal(postflop.pot, 2);
+  assert.equal(postflop.heroStack, 99);
+  assert.equal(postflop.villainStack, 99);
+  assert.equal(postflop.actionHistory[1].action, "check");
+}
+
+{
+  const hand = startNewHand({
+    heroCards: ["As", "7s"],
+    villainCards: ["Kd", "Kh"],
+    board: ["2d", "7h", "Jc", "4s", "Td"],
+    rng: fixedRng([0.01])
+  });
+  const facingRaise = choose(hand, "limp");
+  assert.equal(facingRaise.street, "preflop");
+
+  const postflop = choose(facingRaise, "call");
+  assert.equal(postflop.street, "flop");
+  assert.equal(postflop.pot, 10);
+  assert.equal(postflop.heroStack, 95);
+  assert.equal(postflop.villainStack, 95);
+}
+
+{
+  const hand = startNewHand({
+    heroCards: ["As", "Qs"],
+    villainCards: ["Kd", "Kh"],
+    board: ["2d", "7h", "Jc", "4s", "Td"],
+    rng: fixedRng([0.01])
+  });
+  const facingThreeBet = choose(hand, "raise");
+  assert.equal(facingThreeBet.street, "preflop");
+
+  const postflop = choose(facingThreeBet, "call");
+  assert.equal(postflop.street, "flop");
+  assert.equal(postflop.pot, 23);
+  assert.equal(postflop.heroStack, 88.5);
+  assert.equal(postflop.villainStack, 88.5);
+}
+
+{
+  const hand = startNewHand({
+    heroCards: ["As", "Ks"],
+    villainCards: ["Qc", "4c"],
+    board: ["2d", "7h", "Jc", "4s", "Td"],
+    rng: fixedRng([0.99])
+  });
+  const postflop = choose(hand, "limp");
+
+  assert.equal(postflop.handOver, false);
+  assert.equal(postflop.actionHistory[0].action, "limp");
+  assert.equal(postflop.actionHistory[0].frequency, 0);
+}
+
+{
+  const hand = startNewHand({
+    heroCards: ["7c", "2d"],
+    villainCards: ["Qc", "4c"],
+    board: ["2h", "7h", "Jc", "4s", "Td"],
+    rng: fixedRng([0.99])
+  });
+  const folded = choose(hand, "fold");
+
+  assert.equal(folded.handOver, true);
+  assert.equal(folded.result?.reason, "hero_folded_preflop");
 }
 
 console.log("poker engine tests passed");

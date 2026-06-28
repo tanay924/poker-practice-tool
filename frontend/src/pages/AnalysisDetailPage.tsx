@@ -33,6 +33,8 @@ export default function AnalysisDetailPage() {
   const solverOutput = detail.job?.solver_output_json;
   const solverMetadata = solverOutput?.metadata?.solver;
   const solverLabel = solverMetadata ? formatSolverLabel(solverMetadata) : detail.job?.status === "ready" ? "Unknown" : "Pending";
+  const preflopResults = solverOutput?.preflop_results ?? [];
+  const preflopBlocksPostflop = solverOutput?.preflop_summary?.blocks_postflop ?? false;
 
   return (
     <section className="stack">
@@ -68,10 +70,40 @@ export default function AnalysisDetailPage() {
 
       <section className="panel">
         <h3>Preflop Feedback</h3>
-        <p>
-          V1 scripts this spot as SB opens to 2.5bb and BB calls. Imported preflop ranges are stored for study, but
-          preflop decisions are not scored until the range strategy layer is added.
-        </p>
+        {preflopResults.length === 0 && (
+          <p>
+            This hand does not include integrated preflop range metadata, so only postflop feedback is available.
+          </p>
+        )}
+        {preflopBlocksPostflop && (
+          <div className="notice-box">
+            <span className="label">Shark skipped</span>
+            <p>Hero chose a 0% preflop line, so postflop solver analysis was not run for this hand.</p>
+          </div>
+        )}
+        <div className="decision-list">
+          {preflopResults.map((result, index) => (
+            <article className="decision" key={`${result.spot_id}-${index}`}>
+              <div>
+                <span className="status-pill">{result.correct ? "valid" : "0%"}</span>
+                <h4>{result.spot_name}</h4>
+                <p>
+                  {result.hand_key} - Hero chose <strong>{result.hero_action}</strong> at{" "}
+                  <strong>{formatPercent(result.selected_frequency)}</strong>
+                </p>
+              </div>
+              <div className="strategy-bars">
+                {Object.entries(result.options).map(([action, frequency]) => (
+                  <div className="strategy-row" key={action}>
+                    <span>{action}</span>
+                    <div className="bar"><span style={{ width: `${Math.round(frequency * 100)}%` }} /></div>
+                    <strong>{formatPercent(frequency)}</strong>
+                  </div>
+                ))}
+              </div>
+            </article>
+          ))}
+        </div>
       </section>
 
       <section className="panel">
@@ -98,6 +130,12 @@ export default function AnalysisDetailPage() {
             Source: {solverLabel}
             {typeof solverOutput.metadata.duration_seconds === "number" ? ` - ${solverOutput.metadata.duration_seconds.toFixed(2)}s` : ""}
             {solverOutput.metadata.cache ? ` - cache ${solverOutput.metadata.cache.hit ? "hit" : "miss"}` : ""}
+          </p>
+        )}
+        {solverOutput?.postflop_status && solverOutput.postflop_status !== "ready" && (
+          <p className="muted-text">
+            Postflop status: {solverOutput.postflop_status}
+            {solverOutput.postflop_error ? ` - ${solverOutput.postflop_error}` : ""}
           </p>
         )}
 
@@ -149,4 +187,8 @@ function formatSolverLabel(solver: { name: string; version?: string; commit?: st
     return "Mock";
   }
   return [solver.name, solver.version].filter(Boolean).join(" ");
+}
+
+function formatPercent(value: number) {
+  return `${Math.round(value * 100)}%`;
 }

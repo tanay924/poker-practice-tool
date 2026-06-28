@@ -208,11 +208,31 @@ json overall_strategy(
 
 std::shared_ptr<SolvedTree> solve_tree(const json &solver_input, const json &settings, bool &cache_hit) {
   const json &ranges = solver_input.at("ranges").at("shark_ranges");
+  std::vector<Card> flop_board = parse_board(solver_input.at("board"), 3);
+  json flop_board_json = json::array();
+  for (size_t i = 0; i < 3; ++i) {
+    flop_board_json.push_back(solver_input.at("board").at(i));
+  }
+
+  int starting_pot = static_cast<int>(std::round(solver_input.value("starting_pot_bb", 0.0)));
+  if (starting_pot <= 0) {
+    starting_pot = 5;
+    for (const auto &entry : solver_input.at("action_history")) {
+      if (entry.value("street", "") == "preflop" && entry.value("actor", "") == "BB" &&
+          entry.value("action", "") == "call") {
+        starting_pot = static_cast<int>(std::round(entry.value("pot_after", 5.0)));
+      }
+    }
+  }
+
+  const double effective_stack = solver_input.value("effective_stack_bb", solver_input.value("stack_bb", 100.0));
   const std::string cache_key = json{
-      {"board", solver_input.at("board")},
+      {"flop_board", flop_board_json},
+      {"postflop_branch_id", solver_input.value("postflop_branch_id", "legacy_srp")},
       {"ranges", ranges},
       {"settings", settings},
-      {"stack_bb", solver_input.value("stack_bb", 100)},
+      {"starting_pot_bb", starting_pot},
+      {"effective_stack_bb", effective_stack},
   }.dump();
 
   auto cached = solved_tree_cache.find(cache_key);
@@ -222,23 +242,16 @@ std::shared_ptr<SolvedTree> solve_tree(const json &solver_input, const json &set
   }
   cache_hit = false;
 
-  PreflopRange bb_oop_range{ranges.at("bb_call_vs_open").get<std::string>()};
-  PreflopRange sb_ip_range{ranges.at("sb_open").get<std::string>()};
-  std::vector<Card> flop_board = parse_board(solver_input.at("board"), 3);
+  const std::string oop_key = ranges.contains("oop") ? "oop" : "bb_call_vs_open";
+  const std::string ip_key = ranges.contains("ip") ? "ip" : "sb_open";
+  PreflopRange oop_range{ranges.at(oop_key).get<std::string>()};
+  PreflopRange ip_range{ranges.at(ip_key).get<std::string>()};
 
-  int starting_pot = 5;
-  for (const auto &entry : solver_input.at("action_history")) {
-    if (entry.value("street", "") == "preflop" && entry.value("actor", "") == "BB" &&
-        entry.value("action", "") == "call") {
-      starting_pot = static_cast<int>(std::round(entry.value("pot_after", 5.0)));
-    }
-  }
-
-  const int stack = solver_input.value("stack_bb", 100);
+  const int stack = static_cast<int>(std::round(effective_stack));
   const int min_bet = 2;
   TreeBuilderSettings tree_settings{
-      bb_oop_range,
-      sb_ip_range,
+      oop_range,
+      ip_range,
       2,
       flop_board,
       stack,
@@ -258,8 +271,8 @@ std::shared_ptr<SolvedTree> solve_tree(const json &solver_input, const json &set
   solved->flop_board = flop_board;
   solved->starting_pot = starting_pot;
   solved->range_manager = PreflopRangeManager{
-      bb_oop_range.preflop_combos,
-      sb_ip_range.preflop_combos,
+      oop_range.preflop_combos,
+      ip_range.preflop_combos,
       flop_board};
 
   GameTree game_tree{tree_settings};
