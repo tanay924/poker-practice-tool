@@ -83,15 +83,10 @@ export function legalHeroActions(state: TrainerState): TrainerAction[] {
   }
 
   if (state.facingBet) {
-    const actions = [
+    return uniqueLegalActions([
       actionOption("fold"),
-      actionOption("call", state.facingBetAmount),
-      raiseToAction(sharkAmountForFraction(state.street === "flop" ? 1 : 0.5, state.pot, state.heroStack))
-    ];
-    if (state.street !== "flop") {
-      actions.push(raiseToAction(sharkAmountForFraction(1, state.pot, state.heroStack)));
-    }
-    return uniqueLegalActions(actions);
+      actionOption("call", state.facingBetAmount)
+    ]);
   }
 
   const betFractions = state.street === "flop" ? [0.5, 1] : [0.33, 0.66, 1];
@@ -265,16 +260,6 @@ function actionOption(action: Exclude<CanonicalAction, "raise_to">, amountBb = 0
     action,
     amountBb: roundBb(amountBb),
     label: formatAction({ action, amountBb })
-  };
-}
-
-function raiseToAction(targetAmountBb: number): TrainerAction {
-  const target = roundBb(targetAmountBb);
-  return {
-    action: "raise_to",
-    amountBb: target,
-    targetAmountBb: target,
-    label: `Raise to ${formatBb(target)}`
   };
 }
 

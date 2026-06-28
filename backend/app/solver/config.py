@@ -19,6 +19,7 @@ class SolverSettings:
     shark_all_in_threshold: float = 0.67
     shark_thread_count: int | None = None
     shark_force_donk_check: bool = True
+    shark_postflop_raises_enabled: bool = False
     shark_timeout_seconds: float = 300.0
 
     @property
@@ -35,6 +36,7 @@ class SolverSettings:
             "all_in_threshold": self.shark_all_in_threshold,
             "thread_count": self.effective_thread_count,
             "force_donk_check": self.shark_force_donk_check,
+            "postflop_raises_enabled": self.shark_postflop_raises_enabled,
         }
 
 
@@ -49,6 +51,7 @@ def settings_from_env() -> SolverSettings:
         shark_all_in_threshold=_float_env("POKER_TRAINER_SHARK_ALL_IN_THRESHOLD", 0.67),
         shark_thread_count=_optional_int_env("POKER_TRAINER_SHARK_THREAD_COUNT"),
         shark_force_donk_check=_bool_env("POKER_TRAINER_SHARK_FORCE_DONK_CHECK", True),
+        shark_postflop_raises_enabled=_bool_env("POKER_TRAINER_SHARK_POSTFLOP_RAISES_ENABLED", False),
         shark_timeout_seconds=_float_env("POKER_TRAINER_SHARK_TIMEOUT_SECONDS", 300.0),
     )
 

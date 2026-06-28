@@ -58,10 +58,9 @@ const baseState: TrainerState = {
   const actions = legalHeroActions(facingBetState);
   assert.deepEqual(
     actions.map((action) => action.label),
-    ["Fold", "Call 2bb", "Raise to 7bb"],
+    ["Fold", "Call 2bb"],
   );
-  assert.equal(actions[2].action, "raise_to");
-  assert.equal(actions[2].targetAmountBb, 7);
+  assert.equal(actions.some((action) => action.action === "raise_to"), false);
 }
 
 console.log("poker engine tests passed");

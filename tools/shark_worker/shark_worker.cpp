@@ -247,6 +247,11 @@ std::shared_ptr<SolvedTree> solve_tree(const json &solver_input, const json &set
       settings.value("all_in_threshold", 0.67f)};
   tree_settings.remove_donk_bets = settings.value("force_donk_check", true);
   tree_settings.raise_cap = 3;
+  if (!settings.value("postflop_raises_enabled", false)) {
+    tree_settings.bet_sizing.flop.raise_sizes.clear();
+    tree_settings.bet_sizing.turn.raise_sizes.clear();
+    tree_settings.bet_sizing.river.raise_sizes.clear();
+  }
   DCFR::compress_strategy = true;
 
   auto solved = std::make_shared<SolvedTree>();
