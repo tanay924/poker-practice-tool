@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 
 import { getAnalysis } from "../api";
+import { formatActionEntry } from "../poker/engine";
 import type { AnalysisDetail } from "../types";
 
 export default function AnalysisDetailPage() {
@@ -131,8 +132,7 @@ export default function AnalysisDetailPage() {
         <ol className="compact-history">
           {detail.hand.action_history_json.map((entry, index) => (
             <li key={`${entry.street}-${entry.actor}-${index}`}>
-              {entry.street}: {entry.actor} {entry.action.replace("_", " ")}
-              {entry.amount_bb > 0 ? ` ${entry.amount_bb}bb` : ""}, pot {entry.pot_after}bb
+              {entry.street}: {entry.actor} {formatActionEntry(entry)}, pot {entry.pot_after}bb
             </li>
           ))}
         </ol>

@@ -1,16 +1,14 @@
 import type { ActionEntry, HandCreate } from "../types";
 
 export type Street = "flop" | "turn" | "river";
-export type TrainerAction =
-  | "check"
-  | "bet_33"
-  | "bet_50"
-  | "bet_66"
-  | "bet_100"
-  | "call"
-  | "fold"
-  | "raise_50"
-  | "raise_100";
+export type CanonicalAction = "check" | "bet" | "call" | "fold" | "raise_to";
+
+export interface TrainerAction {
+  action: CanonicalAction;
+  amountBb: number;
+  label: string;
+  targetAmountBb?: number;
+}
 
 export interface TrainerState {
   heroCards: string[];
@@ -31,6 +29,7 @@ export interface TrainerState {
 
 const RANKS = ["A", "K", "Q", "J", "T", "9", "8", "7", "6", "5", "4", "3", "2"];
 const SUITS = ["s", "h", "d", "c"];
+const MINIMUM_BET_BB = 2;
 
 export function buildDeck(): string[] {
   return RANKS.flatMap((rank) => SUITS.map((suit) => `${rank}${suit}`));
@@ -42,8 +41,9 @@ export function startNewHand(): TrainerState {
     {
       street: "preflop",
       actor: "SB",
-      action: "open_2_5",
+      action: "raise_to",
       amount_bb: 2.5,
+      target_amount_bb: 2.5,
       pot_after: 2.5,
       node: "SB scripted open"
     },
@@ -83,51 +83,63 @@ export function legalHeroActions(state: TrainerState): TrainerAction[] {
   }
 
   if (state.facingBet) {
-    return state.street === "flop" ? ["fold", "call", "raise_100"] : ["fold", "call", "raise_50", "raise_100"];
+    const actions = [
+      actionOption("fold"),
+      actionOption("call", state.facingBetAmount),
+      raiseToAction(sharkAmountForFraction(state.street === "flop" ? 1 : 0.5, state.pot, state.heroStack))
+    ];
+    if (state.street !== "flop") {
+      actions.push(raiseToAction(sharkAmountForFraction(1, state.pot, state.heroStack)));
+    }
+    return uniqueLegalActions(actions);
   }
 
-  if (state.street === "flop") {
-    return ["check", "bet_50", "bet_100"];
-  }
-
-  return ["check", "bet_33", "bet_66", "bet_100"];
+  const betFractions = state.street === "flop" ? [0.5, 1] : [0.33, 0.66, 1];
+  return uniqueLegalActions([
+    actionOption("check"),
+    ...betFractions.map((fraction) => actionOption("bet", sharkAmountForFraction(fraction, state.pot, state.heroStack)))
+  ]);
 }
 
 export function applyHeroAction(state: TrainerState, action: TrainerAction): TrainerState {
-  if (!legalHeroActions(state).includes(action)) {
+  if (!legalHeroActions(state).some((candidate) => sameAction(candidate, action))) {
     return state;
   }
 
-  if (action === "fold") {
-    return finishHand(addHeroAction(state, action, 0, state.pot), "villain", "hero_folded");
+  if (action.action === "fold") {
+    return finishHand(addHeroAction(state, action), "villain", "hero_folded");
   }
 
-  if (action === "call") {
-    const called = addHeroAction(state, action, state.facingBetAmount, state.pot + state.facingBetAmount);
+  if (action.action === "call") {
+    const called = addHeroAction(state, action);
     return advanceAfterClosedAction({
       ...called,
-      heroStack: roundBb(called.heroStack - state.facingBetAmount),
+      heroStack: roundBb(called.heroStack - action.amountBb),
       facingBet: false,
       facingBetAmount: 0
     });
   }
 
-  if (action === "check") {
-    return advanceAfterClosedAction(addHeroAction(state, action, 0, state.pot));
+  if (action.action === "check") {
+    return advanceAfterClosedAction(addHeroAction(state, action));
   }
 
-  const amount = amountForAction(action, state.pot);
-  const afterHero = addHeroAction(state, action, amount, state.pot + amount);
-  const afterHeroStack = { ...afterHero, heroStack: roundBb(afterHero.heroStack - amount), facingBet: false, facingBetAmount: 0 };
+  const afterHero = addHeroAction(state, action);
+  const afterHeroStack = {
+    ...afterHero,
+    heroStack: roundBb(afterHero.heroStack - action.amountBb),
+    facingBet: false,
+    facingBetAmount: 0
+  };
 
   if (Math.random() < 0.22) {
-    return finishHand(addVillainAction(afterHeroStack, "fold", 0, afterHeroStack.pot), "hero", "villain_folded");
+    return finishHand(addVillainAction(afterHeroStack, actionOption("fold")), "hero", "villain_folded");
   }
 
-  const called = addVillainAction(afterHeroStack, "call", amount, afterHeroStack.pot + amount);
+  const called = addVillainAction(afterHeroStack, actionOption("call", action.amountBb));
   return advanceAfterClosedAction({
     ...called,
-    villainStack: roundBb(called.villainStack - amount)
+    villainStack: roundBb(called.villainStack - action.amountBb)
   });
 }
 
@@ -143,6 +155,22 @@ export function toHandPayload(state: TrainerState): HandCreate {
     action_history_json: state.actionHistory,
     result_json: state.result ?? { winner: "unknown", reason: "unsaved" }
   };
+}
+
+export function formatActionEntry(entry: ActionEntry): string {
+  if (entry.action === "check" || entry.action === "fold") {
+    return entry.action;
+  }
+  if (entry.action === "call") {
+    return `call ${formatBb(entry.amount_bb)}`;
+  }
+  if (entry.action === "bet") {
+    return `bet ${formatBb(entry.amount_bb)}`;
+  }
+  if (entry.action === "raise_to") {
+    return `raise to ${formatBb(entry.target_amount_bb ?? entry.amount_bb)}`;
+  }
+  return legacyActionLabel(entry);
 }
 
 function shuffle(cards: string[]): string[] {
@@ -165,19 +193,19 @@ function enterStreet(state: TrainerState, street: Street): TrainerState {
   };
 
   if (Math.random() < 0.28) {
-    const villainAction = street === "flop" ? "bet_50" : Math.random() < 0.5 ? "bet_33" : "bet_66";
-    const amount = amountForAction(villainAction, nextState.pot);
+    const amount = sharkAmountForFraction(street === "flop" ? 1 : Math.random() < 0.5 ? 0.33 : 0.66, nextState.pot, nextState.villainStack);
+    const villainAction = actionOption("bet", amount);
     return {
-      ...addVillainAction(nextState, villainAction, amount, nextState.pot + amount),
+      ...addVillainAction(nextState, villainAction),
       villainStack: roundBb(nextState.villainStack - amount),
       facingBet: true,
       facingBetAmount: amount,
-      message: `BB ${labelAction(villainAction)}. Your ${street} response.`
+      message: `BB ${formatAction(villainAction)}. Your ${street} response.`
     };
   }
 
   return {
-    ...addVillainAction(nextState, "check", 0, nextState.pot),
+    ...addVillainAction(nextState, actionOption("check")),
     message: `BB checks. Your ${street} decision.`
   };
 }
@@ -204,29 +232,27 @@ function finishHand(state: TrainerState, winner: string, reason: string): Traine
   };
 }
 
-function addHeroAction(state: TrainerState, action: string, amount: number, potAfter: number): TrainerState {
-  return appendAction(state, {
-    street: state.street,
-    actor: "SB",
-    action,
-    amount_bb: roundBb(amount),
-    pot_after: roundBb(potAfter),
-    node: `SB ${state.street} decision`
-  });
+function addHeroAction(state: TrainerState, action: TrainerAction): TrainerState {
+  return appendAction(state, action, "SB", `SB ${state.street} decision`);
 }
 
-function addVillainAction(state: TrainerState, action: string, amount: number, potAfter: number): TrainerState {
-  return appendAction(state, {
-    street: state.street,
-    actor: "BB",
-    action,
-    amount_bb: roundBb(amount),
-    pot_after: roundBb(potAfter),
-    node: `BB ${state.street} action`
-  });
+function addVillainAction(state: TrainerState, action: TrainerAction): TrainerState {
+  return appendAction(state, action, "BB", `BB ${state.street} action`);
 }
 
-function appendAction(state: TrainerState, entry: ActionEntry): TrainerState {
+function appendAction(state: TrainerState, action: TrainerAction, actor: "SB" | "BB", node: string): TrainerState {
+  const entry: ActionEntry = {
+    street: state.street,
+    actor,
+    action: action.action,
+    amount_bb: roundBb(action.amountBb),
+    pot_after: roundBb(state.pot + action.amountBb),
+    node
+  };
+  if (typeof action.targetAmountBb === "number") {
+    entry.target_amount_bb = roundBb(action.targetAmountBb);
+  }
+
   return {
     ...state,
     pot: entry.pot_after,
@@ -234,26 +260,73 @@ function appendAction(state: TrainerState, entry: ActionEntry): TrainerState {
   };
 }
 
-function amountForAction(action: string, pot: number): number {
-  if (action === "bet_33") {
-    return roundBb(pot * 0.33);
+function actionOption(action: Exclude<CanonicalAction, "raise_to">, amountBb = 0): TrainerAction {
+  return {
+    action,
+    amountBb: roundBb(amountBb),
+    label: formatAction({ action, amountBb })
+  };
+}
+
+function raiseToAction(targetAmountBb: number): TrainerAction {
+  const target = roundBb(targetAmountBb);
+  return {
+    action: "raise_to",
+    amountBb: target,
+    targetAmountBb: target,
+    label: `Raise to ${formatBb(target)}`
+  };
+}
+
+function uniqueLegalActions(actions: TrainerAction[]): TrainerAction[] {
+  const unique: TrainerAction[] = [];
+  for (const action of actions) {
+    if ((action.action === "bet" || action.action === "raise_to") && action.amountBb <= MINIMUM_BET_BB) {
+      continue;
+    }
+    if (!unique.some((candidate) => sameAction(candidate, action))) {
+      unique.push(action);
+    }
   }
-  if (action === "bet_50" || action === "raise_50") {
-    return roundBb(pot * 0.5);
-  }
-  if (action === "bet_66") {
-    return roundBb(pot * 0.66);
-  }
-  if (action === "bet_100" || action === "raise_100") {
-    return roundBb(pot);
-  }
-  return 0;
+  return unique;
+}
+
+function sameAction(left: TrainerAction, right: TrainerAction): boolean {
+  return left.action === right.action && left.amountBb === right.amountBb && left.targetAmountBb === right.targetAmountBb;
+}
+
+function sharkAmountForFraction(fraction: number, pot: number, stack: number): number {
+  return Math.min(Math.trunc(fraction * pot), Math.trunc(stack));
 }
 
 function roundBb(value: number): number {
   return Math.round(value * 10) / 10;
 }
 
-function labelAction(action: string): string {
-  return action.replace("_", " ");
+function formatAction(action: Pick<TrainerAction, "action" | "amountBb" | "targetAmountBb">): string {
+  if (action.action === "check") {
+    return "Check";
+  }
+  if (action.action === "fold") {
+    return "Fold";
+  }
+  if (action.action === "call") {
+    return `Call ${formatBb(action.amountBb)}`;
+  }
+  if (action.action === "bet") {
+    return `Bet ${formatBb(action.amountBb)}`;
+  }
+  return `Raise to ${formatBb(action.targetAmountBb ?? action.amountBb)}`;
+}
+
+function formatBb(value: number): string {
+  return `${Number.isInteger(value) ? value.toFixed(0) : value.toFixed(1)}bb`;
+}
+
+function legacyActionLabel(entry: ActionEntry): string {
+  const action = entry.action.replace(/_/g, " ");
+  if (entry.amount_bb > 0) {
+    return `${action} ${formatBb(entry.amount_bb)}`;
+  }
+  return action;
 }

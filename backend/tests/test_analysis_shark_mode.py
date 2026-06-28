@@ -3,7 +3,7 @@ import asyncio
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 
-from app.analysis.service import compute_cache_key, process_next_analysis_job
+from app.analysis.service import build_solver_input, compute_cache_key, process_next_analysis_job
 from app.db import Base
 from app.models import AnalysisJob, Hand
 from app.solver.config import SolverSettings
@@ -78,3 +78,31 @@ def test_cache_key_changes_when_solver_settings_or_ranges_change() -> None:
     assert same != changed_version
     assert same != changed_settings
     assert same != changed_range
+
+
+def test_solver_input_normalizes_legacy_sizing_actions() -> None:
+    hand = Hand(
+        id=99,
+        hero_position="SB",
+        villain_position="BB",
+        hero_cards="AsKd",
+        villain_cards="QcJh",
+        board_json=["Ks", "7d", "2c", "4h", "9s"],
+        stack_bb=100,
+        pot=10.0,
+        action_history_json=[
+            {"street": "preflop", "actor": "SB", "action": "open_2_5", "amount_bb": 2.5, "pot_after": 2.5, "node": "SB scripted open"},
+            {"street": "flop", "actor": "SB", "action": "bet_100", "amount_bb": 5.0, "pot_after": 10.0, "node": "SB flop decision"},
+            {"street": "turn", "actor": "SB", "action": "raise_50", "amount_bb": 7.0, "pot_after": 24.0, "node": "SB turn decision"},
+        ],
+        result_json={"winner": "hero"},
+    )
+
+    solver_input = build_solver_input(hand)
+
+    assert solver_input["action_history"][0]["action"] == "raise_to"
+    assert solver_input["action_history"][0]["target_amount_bb"] == 2.5
+    assert solver_input["action_history"][1]["action"] == "bet"
+    assert solver_input["action_history"][1]["amount_bb"] == 5.0
+    assert solver_input["action_history"][2]["action"] == "raise_to"
+    assert solver_input["action_history"][2]["target_amount_bb"] == 7.0

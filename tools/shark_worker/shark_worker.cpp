@@ -56,57 +56,76 @@ std::vector<Card> parse_board(const json &cards, size_t count) {
   return board;
 }
 
-std::string action_label(const Action &action, const std::string &street, int &bet_index, int &raise_index) {
+std::string format_amount(int amount) {
+  return std::to_string(amount) + "bb";
+}
+
+std::string action_label(const Action &action) {
   switch (action.type) {
   case Action::FOLD:
     return "fold";
   case Action::CHECK:
     return "check";
   case Action::CALL:
-    return "call";
+    return "call " + format_amount(action.amount);
   case Action::BET:
-    if (street == "flop") {
-      return bet_index++ == 0 ? "bet_50" : "bet_100";
-    }
-    if (bet_index == 0) {
-      ++bet_index;
-      return "bet_33";
-    }
-    if (bet_index == 1) {
-      ++bet_index;
-      return "bet_66";
-    }
-    ++bet_index;
-    return "bet_100";
+    return "bet " + format_amount(action.amount);
   case Action::RAISE:
-    if (street == "flop") {
-      ++raise_index;
-      return "raise_100";
-    }
-    if (raise_index == 0) {
-      ++raise_index;
-      return "raise_50";
-    }
-    ++raise_index;
-    return "raise_100";
+    return "raise to " + format_amount(action.amount);
   }
   return "unknown";
 }
 
 std::vector<std::string> action_labels(const ActionNode *node, const std::string &street) {
   std::vector<std::string> labels;
-  int bet_index = 0;
-  int raise_index = 0;
+  (void)street;
   for (const auto &action : node->get_actions()) {
-    labels.push_back(action_label(action, street, bet_index, raise_index));
+    labels.push_back(action_label(action));
   }
   return labels;
 }
 
-int find_action_index(const ActionNode *node, const std::string &street, const std::string &wanted) {
-  const auto labels = action_labels(node, street);
-  for (size_t i = 0; i < labels.size(); ++i) {
-    if (labels[i] == wanted) {
+bool amount_matches(int actual, const json &entry, const std::string &field) {
+  if (!entry.contains(field) || entry.at(field).is_null()) {
+    return true;
+  }
+  const double expected = entry.at(field).get<double>();
+  return std::fabs(static_cast<double>(actual) - expected) <= 0.51;
+}
+
+bool action_matches_entry(const Action &action, const json &entry) {
+  const std::string wanted = entry.value("action", "");
+  switch (action.type) {
+  case Action::FOLD:
+    return wanted == "fold";
+  case Action::CHECK:
+    return wanted == "check";
+  case Action::CALL:
+    return wanted == "call" && amount_matches(action.amount, entry, "amount_bb");
+  case Action::BET:
+    return wanted == "bet" && amount_matches(action.amount, entry, "amount_bb");
+  case Action::RAISE:
+    return wanted == "raise_to" && amount_matches(action.amount, entry, "target_amount_bb");
+  }
+  return false;
+}
+
+std::string describe_action_entry(const json &entry) {
+  const std::string action = entry.value("action", "");
+  std::ostringstream out;
+  out << action;
+  if (action == "raise_to" && entry.contains("target_amount_bb")) {
+    out << " " << entry.at("target_amount_bb").get<double>() << "bb";
+  } else if (entry.contains("amount_bb") && entry.at("amount_bb").get<double>() > 0.0) {
+    out << " " << entry.at("amount_bb").get<double>() << "bb";
+  }
+  return out.str();
+}
+
+int find_action_index(const ActionNode *node, const json &entry) {
+  const auto &actions = node->get_actions();
+  for (size_t i = 0; i < actions.size(); ++i) {
+    if (action_matches_entry(actions[i], entry)) {
       return static_cast<int>(i);
     }
   }
@@ -297,11 +316,11 @@ json analyze_hand(const json &message) {
     }
 
     auto *action_node = dynamic_cast<ActionNode *>(current);
-    const std::string action = entry.value("action", "");
-    const int action_index = find_action_index(action_node, street, action);
+    const int action_index = find_action_index(action_node, entry);
     if (action_index < 0) {
-      throw std::runtime_error("action is not available in Shark tree: " + action);
+      throw std::runtime_error("action is not available in Shark tree: " + describe_action_entry(entry));
     }
+    const std::string action = action_label(action_node->get_actions()[action_index]);
 
     const std::string actor = entry.value("actor", "");
     const bool is_hero_sb = actor == "SB" || actor == "hero";

@@ -49,9 +49,26 @@ def build_solver_input(hand: Hand) -> dict[str, Any]:
         "board": hand.board_json,
         "stack_bb": hand.stack_bb,
         "pot": hand.pot,
-        "action_history": hand.action_history_json,
+        "action_history": normalize_action_history(hand.action_history_json),
         "result": hand.result_json,
     }
+
+
+def normalize_action_history(action_history: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    return [_normalize_action_entry(entry) for entry in action_history]
+
+
+def _normalize_action_entry(entry: dict[str, Any]) -> dict[str, Any]:
+    normalized = dict(entry)
+    action = str(normalized.get("action", "")).strip().lower()
+
+    if action.startswith("open_") or action.startswith("raise_"):
+        normalized["action"] = "raise_to"
+        normalized.setdefault("target_amount_bb", normalized.get("amount_bb", 0))
+    elif action.startswith("bet_"):
+        normalized["action"] = "bet"
+
+    return normalized
 
 
 def prepare_solver_input(db: Session, hand: Hand, solver: SolverAdapter) -> dict[str, Any]:

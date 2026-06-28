@@ -5,6 +5,7 @@ export interface ActionEntry {
   actor: "SB" | "BB" | "hero" | "villain";
   action: string;
   amount_bb: number;
+  target_amount_bb?: number;
   pot_after: number;
   node: string;
 }

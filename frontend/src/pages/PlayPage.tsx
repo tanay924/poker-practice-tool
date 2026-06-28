@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 
 import { analyzeHand, getAnalysis, saveHand } from "../api";
 import type { AnalysisJob, HandRead } from "../types";
-import { applyHeroAction, legalHeroActions, startNewHand, toHandPayload, type TrainerAction } from "../poker/engine";
+import { applyHeroAction, formatActionEntry, legalHeroActions, startNewHand, toHandPayload, type TrainerAction } from "../poker/engine";
 
 function Card({ value, muted = false }: { value: string; muted?: boolean }) {
   const suit = value.slice(-1);
@@ -122,8 +122,8 @@ export default function PlayPage() {
 
         <div className="action-buttons">
           {legalActions.map((action) => (
-            <button key={action} type="button" onClick={() => act(action)}>
-              {action.replace("_", " ")}
+            <button key={`${action.action}-${action.amountBb}-${action.targetAmountBb ?? ""}`} type="button" onClick={() => act(action)}>
+              {action.label}
             </button>
           ))}
           {hand.handOver && (
@@ -155,8 +155,7 @@ export default function PlayPage() {
               <li key={`${entry.street}-${entry.actor}-${entry.action}-${index}`}>
                 <span>{entry.street}</span>
                 <strong>{entry.actor}</strong>
-                {entry.action.replace("_", " ")}
-                {entry.amount_bb > 0 ? ` ${entry.amount_bb}bb` : ""}
+                {formatActionEntry(entry)}
               </li>
             ))}
           </ol>
