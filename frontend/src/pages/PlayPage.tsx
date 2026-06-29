@@ -5,6 +5,7 @@ import { analyzeHand, getAnalysis, saveHand } from "../api";
 import PlayingCard from "../components/PlayingCard";
 import type { AnalysisJob, HandRead } from "../types";
 import { applyHeroAction, formatActionEntry, legalHeroActions, startNewHand, toHandPayload, type SeatMode, type TrainerAction } from "../poker/engine";
+import { shouldRevealOpponentCards } from "../poker/visibility";
 import { analysisControlFor } from "./playAnalysisControl";
 
 const SEAT_MODE_STORAGE_KEY = "poker-trainer-seat-mode";
@@ -22,6 +23,8 @@ export default function PlayPage() {
 
   const legalActions = useMemo(() => legalHeroActions(hand), [hand]);
   const analysisControl = analysisControlFor(savedHand, analysisJob);
+  const revealVillainCards = shouldRevealOpponentCards(hand.result);
+  const hiddenBoardSlots = hand.handOver ? 0 : 5 - hand.visibleBoard.length;
 
   useEffect(() => {
     if (!hand.handOver || saveAttempted) {
@@ -96,14 +99,14 @@ export default function PlayPage() {
         <div className="seat villain-seat">
           <span className="seat-label">{hand.villainPosition}</span>
           <div className="cards">
-            {hand.handOver ? hand.villainCards.map((card) => <PlayingCard key={card} value={card} />) : <><PlayingCard value="??" muted /><PlayingCard value="??" muted /></>}
+            {revealVillainCards ? hand.villainCards.map((card) => <PlayingCard key={card} value={card} />) : <><PlayingCard value="??" muted /><PlayingCard value="??" muted /></>}
           </div>
           <span>{hand.villainStack.toFixed(1)}bb</span>
         </div>
 
         <div className="board-row">
           {hand.visibleBoard.map((card) => <PlayingCard key={card} value={card} />)}
-          {Array.from({ length: 5 - hand.visibleBoard.length }).map((_, index) => (
+          {Array.from({ length: hiddenBoardSlots }).map((_, index) => (
             <PlayingCard key={`empty-${index}`} value="--" muted />
           ))}
         </div>

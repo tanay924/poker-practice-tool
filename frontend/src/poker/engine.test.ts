@@ -320,6 +320,14 @@ const baseState: TrainerState = {
 }
 
 {
+  const foldedOnFlop = choose({ ...baseState, rng: fixedRng([0.01]) }, "bet");
+
+  assert.equal(foldedOnFlop.handOver, true);
+  assert.equal(foldedOnFlop.result?.reason, "villain_folded");
+  assert.deepEqual(foldedOnFlop.visibleBoard, ["Ks", "7d", "2c"]);
+}
+
+{
   const hand = startNewHand({
     heroCards: ["7c", "2d"],
     villainCards: ["Qc", "4c"],
@@ -330,6 +338,7 @@ const baseState: TrainerState = {
 
   assert.equal(folded.handOver, true);
   assert.equal(folded.result?.reason, "hero_folded_preflop");
+  assert.deepEqual(folded.visibleBoard, []);
 }
 
 console.log("poker engine tests passed");

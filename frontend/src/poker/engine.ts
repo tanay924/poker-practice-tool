@@ -652,7 +652,7 @@ function finishHand(state: TrainerState, winner: string, reason: string): Traine
   return {
     ...state,
     handOver: true,
-    visibleBoard: state.board,
+    visibleBoard: state.visibleBoard,
     facingBet: false,
     facingBetAmount: 0,
     currentPreflopDecision: null,
