@@ -12,6 +12,7 @@ import { getRangeForSpot, legalActionsBySpot, PREFLOP_SPOTS, type PreflopSpotId 
 
 export type Street = "preflop" | "flop" | "turn" | "river";
 export type CanonicalAction = "check" | "bet" | "call" | "fold" | "raise_to" | "raise" | "limp" | "allin";
+export type SeatMode = "random" | Position;
 
 export interface TrainerAction {
   action: CanonicalAction;
@@ -36,6 +37,8 @@ export interface TrainerState {
   board: string[];
   visibleBoard: string[];
   street: Street;
+  heroPosition: Position;
+  villainPosition: Position;
   pot: number;
   heroStack: number;
   villainStack: number;
@@ -54,7 +57,9 @@ export interface TrainerState {
 export interface StartHandOptions {
   board?: [string, string, string, string, string];
   heroCards?: [string, string];
+  heroPosition?: Position;
   rng?: Rng;
+  seatMode?: SeatMode;
   villainCards?: [string, string];
 }
 
@@ -80,13 +85,17 @@ export function buildDeck(): string[] {
 
 export function startNewHand(options: StartHandOptions = {}): TrainerState {
   const rng = options.rng ?? Math.random;
+  const heroPosition = resolveHeroPosition(options, rng);
+  const villainPosition = oppositePosition(heroPosition);
   const { heroCards, villainCards, board } = dealCards(options, rng);
-  return {
+  const state: TrainerState = {
     heroCards,
     villainCards,
     board,
     visibleBoard: [],
     street: "preflop",
+    heroPosition,
+    villainPosition,
     pot: 0,
     heroStack: 100,
     villainStack: 100,
@@ -95,11 +104,17 @@ export function startNewHand(options: StartHandOptions = {}): TrainerState {
     actionHistory: [],
     handOver: false,
     result: null,
-    currentPreflopDecision: buildPreflopDecision(PREFLOP_SPOTS.sbOpen, "SB", heroCards),
+    currentPreflopDecision: heroPosition === "SB" ? buildPreflopDecision(PREFLOP_SPOTS.sbOpen, "SB", heroCards) : null,
     preflopBlocked: false,
     rng,
-    message: "SB preflop decision."
+    message: heroPosition === "SB" ? "SB preflop decision." : "SB acts first."
   };
+
+  if (heroPosition === "BB") {
+    return advanceAfterAutomaticSbOpen(state);
+  }
+
+  return state;
 }
 
 export function legalHeroActions(state: TrainerState): TrainerAction[] {
@@ -149,7 +164,11 @@ export function applyHeroAction(state: TrainerState, action: TrainerAction): Tra
   }
 
   if (action.action === "check") {
-    return advanceAfterClosedAction(addHeroAction(state, action));
+    const checked = addHeroAction(state, action);
+    if (state.heroPosition === "BB") {
+      return advanceAfterHeroOopCheck(checked);
+    }
+    return advanceAfterClosedAction(checked);
   }
 
   const afterHero = addHeroAction(state, action);
@@ -173,8 +192,8 @@ export function applyHeroAction(state: TrainerState, action: TrainerAction): Tra
 
 export function toHandPayload(state: TrainerState): HandCreate {
   return {
-    hero_position: "SB",
-    villain_position: "BB",
+    hero_position: state.heroPosition,
+    villain_position: state.villainPosition,
     hero_cards: state.heroCards.join(""),
     villain_cards: state.villainCards.join(""),
     board_json: state.board,
@@ -223,14 +242,45 @@ function applyHeroPreflopAction(state: TrainerState, action: PreflopAction): Tra
   if (decision.spotId === PREFLOP_SPOTS.sbOpen) {
     return advanceAfterHeroSbOpen(scoredState, action);
   }
+  if (decision.spotId === PREFLOP_SPOTS.bbVsSbOpen) {
+    return advanceAfterHeroBbVsSbOpen(scoredState, action);
+  }
   if (decision.spotId === PREFLOP_SPOTS.sbVsBbReraise) {
     return advanceAfterHeroSbVsThreeBet(scoredState, action);
   }
   if (decision.spotId === PREFLOP_SPOTS.sbLimpVsBbRaise) {
     return advanceAfterHeroSbLimpVsRaise(scoredState, action);
   }
+  if (decision.spotId === PREFLOP_SPOTS.bbVsSbLimp) {
+    return advanceAfterHeroBbVsSbLimp(scoredState, action);
+  }
 
   return finishHand(scoredState, "showdown", "preflop_tree_closed");
+}
+
+function advanceAfterAutomaticSbOpen(state: TrainerState): TrainerState {
+  const sbDecision = buildPreflopDecision(PREFLOP_SPOTS.sbOpen, "SB", state.villainCards as [string, string]);
+  const sbAction = sampleAction(sbDecision.options, state.rng ?? Math.random).action;
+  const afterSbAction = appendPreflopAction(state, sbDecision, sbAction, true);
+
+  if (sbAction === "fold") {
+    return finishHand(afterSbAction, "hero", "villain_folded_preflop");
+  }
+  if (sbAction === "limp") {
+    return {
+      ...afterSbAction,
+      currentPreflopDecision: buildPreflopDecision(PREFLOP_SPOTS.bbVsSbLimp, "BB", state.heroCards as [string, string]),
+      message: "SB limps. BB decision."
+    };
+  }
+  if (sbAction === "raise") {
+    return {
+      ...afterSbAction,
+      currentPreflopDecision: buildPreflopDecision(PREFLOP_SPOTS.bbVsSbOpen, "BB", state.heroCards as [string, string]),
+      message: "SB opens to 2.5bb. BB decision."
+    };
+  }
+  return finishHand(afterSbAction, "showdown", "preflop_tree_closed");
 }
 
 function advanceAfterHeroSbOpen(state: TrainerState, action: PreflopAction): TrainerState {
@@ -275,6 +325,29 @@ function advanceAfterHeroSbOpen(state: TrainerState, action: PreflopAction): Tra
   return finishHand(state, "showdown", "preflop_tree_closed");
 }
 
+function advanceAfterHeroBbVsSbOpen(state: TrainerState, action: PreflopAction): TrainerState {
+  if (action === "fold") {
+    return finishHand(state, "villain", "hero_folded_preflop");
+  }
+  if (action === "call") {
+    return enterPostflopBranch(state, { branchId: "srp_open_call", pot: 5, stack: 97.5 });
+  }
+  if (action === "raise") {
+    const sbDecision = buildPreflopDecision(PREFLOP_SPOTS.sbVsBbReraise, "SB", state.villainCards as [string, string]);
+    const sbAction = sampleAction(sbDecision.options, state.rng ?? Math.random).action;
+    const afterSbAction = appendPreflopAction(state, sbDecision, sbAction, true);
+
+    if (sbAction === "call") {
+      return enterPostflopBranch(afterSbAction, { branchId: "three_bet_call", pot: 23, stack: 88.5 });
+    }
+    if (sbAction === "fold") {
+      return finishHand(afterSbAction, "hero", "villain_folded_to_3bet");
+    }
+    return finishHand(afterSbAction, "villain", "villain_4bet_preflop");
+  }
+  return finishHand(state, "hero", action === "allin" ? "hero_allin_preflop" : "preflop_tree_closed");
+}
+
 function advanceAfterHeroSbVsThreeBet(state: TrainerState, action: PreflopAction): TrainerState {
   if (action === "call") {
     return enterPostflopBranch(state, { branchId: "three_bet_call", pot: 23, stack: 88.5 });
@@ -287,6 +360,26 @@ function advanceAfterHeroSbLimpVsRaise(state: TrainerState, action: PreflopActio
     return enterPostflopBranch(state, { branchId: "limp_raise_call", pot: 10, stack: 95 });
   }
   return finishHand(state, action === "fold" ? "villain" : "hero", action === "fold" ? "hero_folded_to_limp_raise" : "hero_limp_reraised_preflop");
+}
+
+function advanceAfterHeroBbVsSbLimp(state: TrainerState, action: PreflopAction): TrainerState {
+  if (action === "check") {
+    return enterPostflopBranch(state, { branchId: "limp_check", pot: 2, stack: 99 });
+  }
+  if (action === "raise") {
+    const sbDecision = buildPreflopDecision(PREFLOP_SPOTS.sbLimpVsBbRaise, "SB", state.villainCards as [string, string]);
+    const sbAction = sampleAction(sbDecision.options, state.rng ?? Math.random).action;
+    const afterSbAction = appendPreflopAction(state, sbDecision, sbAction, true);
+
+    if (sbAction === "call") {
+      return enterPostflopBranch(afterSbAction, { branchId: "limp_raise_call", pot: 10, stack: 95 });
+    }
+    if (sbAction === "fold") {
+      return finishHand(afterSbAction, "hero", "villain_folded_to_limp_raise");
+    }
+    return finishHand(afterSbAction, "villain", "villain_limp_reraised_preflop");
+  }
+  return finishHand(state, "showdown", "preflop_tree_closed");
 }
 
 function enterPostflopBranch(state: TrainerState, branch: PostflopBranch): TrainerState {
@@ -302,7 +395,7 @@ function enterPostflopBranch(state: TrainerState, branch: PostflopBranch): Train
       visibleBoard: state.board.slice(0, 3),
       facingBet: false,
       facingBetAmount: 0,
-      message: "BB checks. Your flop decision."
+      message: state.heroPosition === "BB" ? "Your flop decision." : "BB checks. Your flop decision."
     },
     "flop"
   );
@@ -343,11 +436,28 @@ function appendPreflopAction(state: TrainerState, decision: TrainerPreflopDecisi
   return {
     ...state,
     pot: actionState.potAfter,
-    heroStack: decision.actorPosition === "SB" ? roundBb(state.heroStack - actionState.amountBb) : state.heroStack,
-    villainStack: decision.actorPosition === "BB" ? roundBb(state.villainStack - actionState.amountBb) : state.villainStack,
+    heroStack: decision.actorPosition === state.heroPosition ? roundBb(state.heroStack - actionState.amountBb) : state.heroStack,
+    villainStack: decision.actorPosition === state.villainPosition ? roundBb(state.villainStack - actionState.amountBb) : state.villainStack,
     actionHistory: [...state.actionHistory, entry],
     currentPreflopDecision: null
   };
+}
+
+function resolveHeroPosition(options: StartHandOptions, rng: Rng): Position {
+  if (options.heroPosition) {
+    return options.heroPosition;
+  }
+  if (options.seatMode === "SB" || options.seatMode === "BB") {
+    return options.seatMode;
+  }
+  if (options.seatMode === "random") {
+    return rng() < 0.5 ? "SB" : "BB";
+  }
+  return "SB";
+}
+
+function oppositePosition(position: Position): Position {
+  return position === "SB" ? "BB" : "SB";
 }
 
 function preflopActionState(spotId: PreflopSpotId, action: PreflopAction): PreflopActionState {
@@ -471,6 +581,13 @@ function enterStreet(state: TrainerState, street: Exclude<Street, "preflop">): T
   };
   const rng = state.rng ?? Math.random;
 
+  if (state.heroPosition === "BB") {
+    return {
+      ...nextState,
+      message: `Your ${street} decision.`
+    };
+  }
+
   if (villainCanLeadStreet(nextState, street) && rng() < 0.28) {
     const amount = sharkAmountForFraction(street === "flop" ? 1 : rng() < 0.5 ? 0.33 : 0.66, nextState.pot, nextState.villainStack);
     const villainAction = actionOption("bet", amount);
@@ -503,12 +620,15 @@ function villainCanLeadStreet(state: TrainerState, street: Street): boolean {
   if (street === "preflop") {
     return false;
   }
+  if (state.villainPosition !== "BB") {
+    return false;
+  }
   if (street === "flop") {
     return false;
   }
 
   const previousStreet = street === "turn" ? "flop" : "turn";
-  return lastAggressor(state.actionHistory, previousStreet) === "BB";
+  return lastAggressor(state.actionHistory, previousStreet) === state.villainPosition;
 }
 
 function lastAggressor(actionHistory: ActionEntry[], street: Street): ActionEntry["actor"] | null {
@@ -535,11 +655,28 @@ function finishHand(state: TrainerState, winner: string, reason: string): Traine
 }
 
 function addHeroAction(state: TrainerState, action: TrainerAction): TrainerState {
-  return appendAction(state, action, "SB", `SB ${state.street} decision`);
+  return appendAction(state, action, state.heroPosition, `${state.heroPosition} ${state.street} decision`);
 }
 
 function addVillainAction(state: TrainerState, action: TrainerAction): TrainerState {
-  return appendAction(state, action, "BB", `BB ${state.street} action`);
+  return appendAction(state, action, state.villainPosition, `${state.villainPosition} ${state.street} action`);
+}
+
+function advanceAfterHeroOopCheck(state: TrainerState): TrainerState {
+  const rng = state.rng ?? Math.random;
+  if (rng() < 0.35) {
+    const amount = sharkAmountForFraction(state.street === "flop" ? 1 : rng() < 0.5 ? 0.33 : 0.66, state.pot, state.villainStack);
+    const villainAction = actionOption("bet", amount);
+    return {
+      ...addVillainAction(state, villainAction),
+      villainStack: roundBb(state.villainStack - amount),
+      facingBet: true,
+      facingBetAmount: amount,
+      message: `${state.villainPosition} ${formatAction(villainAction)}. Your ${state.street} response.`
+    };
+  }
+
+  return advanceAfterClosedAction(addVillainAction(state, actionOption("check")));
 }
 
 function appendAction(state: TrainerState, action: TrainerAction, actor: "SB" | "BB", node: string): TrainerState {

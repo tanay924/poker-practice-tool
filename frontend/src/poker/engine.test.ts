@@ -5,6 +5,7 @@ import {
   formatActionEntry,
   legalHeroActions,
   startNewHand,
+  toHandPayload,
   type TrainerState,
 } from "./engine";
 
@@ -29,6 +30,8 @@ const baseState: TrainerState = {
   villainStack: 97.5,
   facingBet: false,
   facingBetAmount: 0,
+  heroPosition: "SB",
+  villainPosition: "BB",
   actionHistory: [],
   handOver: false,
   result: null,
@@ -92,6 +95,71 @@ const baseState: TrainerState = {
   } finally {
     Math.random = originalRandom;
   }
+}
+
+{
+  const hand = startNewHand({
+    heroPosition: "BB",
+    heroCards: ["Kc", "9c"],
+    villainCards: ["As", "Ah"],
+    board: ["2d", "7h", "Jc", "4s", "Td"],
+    rng: fixedRng([0.5])
+  });
+
+  assert.equal(hand.heroPosition, "BB");
+  assert.equal(hand.villainPosition, "SB");
+  assert.equal(hand.actionHistory[0].actor, "SB");
+  assert.equal(hand.actionHistory[0].action, "raise");
+  assert.equal(hand.actionHistory[0].automatic, true);
+  assert.equal(hand.currentPreflopDecision?.actorPosition, "BB");
+  assert.equal(hand.currentPreflopDecision?.spotId, "HU_SRP_BB_VS_SB_OPEN_100BB");
+
+  const postflop = choose(hand, "call");
+  assert.equal(postflop.street, "flop");
+  assert.equal(postflop.pot, 5);
+  assert.equal(postflop.heroStack, 97.5);
+  assert.equal(postflop.villainStack, 97.5);
+  assert.equal(postflop.actionHistory.at(-1)?.actor, "BB");
+  assert.equal(postflop.actionHistory.at(-1)?.automatic, false);
+  assert.deepEqual(
+    legalHeroActions(postflop).map((action) => action.label),
+    ["Check", "Bet 2bb", "Bet 5bb"],
+  );
+
+  const payload = toHandPayload(postflop);
+  assert.equal(payload.hero_position, "BB");
+  assert.equal(payload.villain_position, "SB");
+}
+
+{
+  const hand = startNewHand({
+    heroPosition: "BB",
+    heroCards: ["Kc", "9c"],
+    villainCards: ["As", "Ah"],
+    board: ["2d", "7h", "Jc", "4s", "Td"],
+    rng: fixedRng([0.5, 0.99])
+  });
+  const postflop = choose(hand, "call");
+  const turn = choose(postflop, "check");
+
+  assert.equal(turn.street, "turn");
+  assert.equal(turn.actionHistory.at(-2)?.actor, "BB");
+  assert.equal(turn.actionHistory.at(-2)?.action, "check");
+  assert.equal(turn.actionHistory.at(-1)?.actor, "SB");
+  assert.equal(turn.actionHistory.at(-1)?.action, "check");
+}
+
+{
+  const hand = startNewHand({
+    seatMode: "random",
+    heroCards: ["Kc", "9c"],
+    villainCards: ["As", "Ah"],
+    board: ["2d", "7h", "Jc", "4s", "Td"],
+    rng: fixedRng([0.75, 0.5])
+  });
+
+  assert.equal(hand.heroPosition, "BB");
+  assert.equal(hand.villainPosition, "SB");
 }
 
 {

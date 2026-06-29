@@ -103,7 +103,7 @@ npm run dev
 
 ## Pages
 
-- `/play`: play a simplified HU hand, save it, and request analysis.
+- `/play`: play a simplified HU hand from a Random/SB/BB seat mode, save it, and request analysis.
 - `/preflop`: practice bundled 100bb HU opening ranges through the available 3-bet decision tree.
 - `/analysis`: list queued, solving, ready, failed, and unsupported jobs.
 - `/analysis/:handId`: view the Shark answer sheet and bundled preflop feedback.
