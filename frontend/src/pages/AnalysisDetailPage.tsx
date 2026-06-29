@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 
 import { getAnalysis } from "../api";
+import PlayingCard from "../components/PlayingCard";
 import { formatActionEntry } from "../poker/engine";
 import type { AnalysisDetail } from "../types";
 
@@ -35,6 +36,9 @@ export default function AnalysisDetailPage() {
   const solverLabel = solverMetadata ? formatSolverLabel(solverMetadata) : detail.job?.status === "ready" ? "Unknown" : "Pending";
   const preflopResults = solverOutput?.preflop_results ?? [];
   const preflopBlocksPostflop = solverOutput?.preflop_summary?.blocks_postflop ?? false;
+  const heroCards = splitCardString(detail.hand.hero_cards);
+  const villainCards = splitCardString(detail.hand.villain_cards);
+  const resultText = formatResultText(detail.hand.result_json);
 
   return (
     <section className="stack">
@@ -43,30 +47,35 @@ export default function AnalysisDetailPage() {
       <div className="page-heading">
         <p className="eyebrow">Hand #{detail.hand.id}</p>
         <h2>Answer Sheet</h2>
+        <p className="answer-result-line">{resultText}</p>
       </div>
 
-      <div className="summary-grid">
-        <div>
-          <span className="label">Hero</span>
-          <strong>{detail.hand.hero_cards}</strong>
+      <section className="hand-table-snapshot" aria-label="Final table state">
+        <div className="snapshot-seat snapshot-villain">
+          <span className="seat-label">Opponent {detail.hand.villain_position}</span>
+          <div className="cards">
+            {villainCards.map((card) => <PlayingCard key={`villain-${card}`} value={card} />)}
+          </div>
         </div>
-        <div>
-          <span className="label">Board</span>
-          <strong>{detail.hand.board_json.join(" ")}</strong>
+
+        <div className="snapshot-board">
+          <span className="label">Final board</span>
+          <div className="board-row">
+            {detail.hand.board_json.map((card) => <PlayingCard key={`board-${card}`} value={card} />)}
+          </div>
+          <div className="pot-display snapshot-pot">
+            <span>Final pot</span>
+            <strong>{formatBb(detail.hand.pot)}</strong>
+          </div>
         </div>
-        <div>
-          <span className="label">Status</span>
-          <span className={`status-pill ${detail.job?.status ?? ""}`}>{detail.job?.status ?? "not requested"}</span>
+
+        <div className="snapshot-seat snapshot-hero">
+          <span className="seat-label">Hero {detail.hand.hero_position}</span>
+          <div className="cards">
+            {heroCards.map((card) => <PlayingCard key={`hero-${card}`} value={card} />)}
+          </div>
         </div>
-        <div>
-          <span className="label">Solver</span>
-          <strong>{solverLabel}</strong>
-        </div>
-        <div>
-          <span className="label">Result</span>
-          <strong>{String(detail.hand.result_json.reason ?? detail.hand.result_json.winner ?? "complete")}</strong>
-        </div>
-      </div>
+      </section>
 
       <section className="panel">
         <h3>Preflop Feedback</h3>
@@ -188,4 +197,67 @@ function formatSolverLabel(solver: { name: string; version?: string; commit?: st
 
 function formatPercent(value: number) {
   return `${Math.round(value * 100)}%`;
+}
+
+function splitCardString(cards: string) {
+  const trimmed = cards.trim();
+  const result: string[] = [];
+  for (let index = 0; index < trimmed.length; index += 2) {
+    result.push(trimmed.slice(index, index + 2));
+  }
+  return result;
+}
+
+function formatBb(value: number) {
+  return `${Number.isInteger(value) ? value.toFixed(0) : value.toFixed(1)}bb`;
+}
+
+function formatResultText(result: Record<string, unknown>) {
+  const winner = typeof result.winner === "string" ? result.winner : "unknown";
+  const reason = typeof result.reason === "string" ? result.reason : "";
+
+  if (winner === "hero") {
+    return `Hero won${formatWinningReason(reason, "opponent")}.`;
+  }
+  if (winner === "villain") {
+    return `Opponent won${formatWinningReason(reason, "hero")}.`;
+  }
+  if (winner === "showdown") {
+    return "The hand reached showdown after the river action closed.";
+  }
+  return "The hand is complete.";
+}
+
+function formatWinningReason(reason: string, foldedPlayer: "hero" | "opponent") {
+  const foldReasons = new Set([
+    "hero_folded",
+    "hero_folded_preflop",
+    "hero_folded_to_3bet",
+    "hero_folded_to_limp_raise",
+    "villain_folded",
+    "villain_folded_preflop",
+    "villain_folded_to_3bet",
+    "villain_folded_to_limp_raise"
+  ]);
+  if (foldReasons.has(reason)) {
+    return ` when ${foldedPlayer} folded`;
+  }
+
+  const allInReasons = new Set(["bb_allin_preflop", "hero_allin_preflop"]);
+  if (allInReasons.has(reason)) {
+    return " when the preflop line reached an all-in branch";
+  }
+
+  const treeClosedReasons = new Set([
+    "preflop_tree_closed",
+    "hero_4bet_preflop",
+    "hero_limp_reraised_preflop",
+    "villain_4bet_preflop",
+    "villain_limp_reraised_preflop"
+  ]);
+  if (treeClosedReasons.has(reason)) {
+    return " when the supported preflop tree ended";
+  }
+
+  return "";
 }
