@@ -9,6 +9,7 @@ import {
   type Rng
 } from "../preflop/engine";
 import { getRangeForSpot, legalActionsBySpot, PREFLOP_SPOTS, type PreflopSpotId } from "../preflop/rangeData";
+import { evaluateHoldemShowdown } from "./handEvaluator";
 
 export type Street = "preflop" | "flop" | "turn" | "river";
 export type CanonicalAction = "check" | "bet" | "call" | "fold" | "raise_to" | "raise" | "limp" | "allin";
@@ -620,7 +621,17 @@ function advanceAfterClosedAction(state: TrainerState): TrainerState {
   if (state.street === "turn") {
     return enterStreet(state, "river");
   }
-  return finishHand(state, "showdown", "river_completed");
+  return finishShowdown(state);
+}
+
+function finishShowdown(state: TrainerState): TrainerState {
+  const showdown = evaluateHoldemShowdown(state.heroCards, state.villainCards, state.board);
+  return finishHand(state, showdown.winner === "villain" ? "villain" : showdown.winner, "river_completed", {
+    hero_hand: showdown.heroHand,
+    showdown: true,
+    villain_hand: showdown.villainHand,
+    winning_hand: showdown.winningHand
+  });
 }
 
 function villainCanLeadStreet(state: TrainerState, street: Street): boolean {
@@ -648,17 +659,51 @@ function lastAggressor(actionHistory: ActionEntry[], street: Street): ActionEntr
   return aggressor;
 }
 
-function finishHand(state: TrainerState, winner: string, reason: string): TrainerState {
+function finishHand(state: TrainerState, winner: string, reason: string, resultDetails: Record<string, unknown> = {}): TrainerState {
   return {
     ...state,
     handOver: true,
-    visibleBoard: state.board,
+    visibleBoard: state.visibleBoard,
     facingBet: false,
     facingBetAmount: 0,
     currentPreflopDecision: null,
-    result: { winner, reason },
-    message: winner === "showdown" ? "River action closed. Hand saved for review." : `${winner.toUpperCase()} wins by ${reason.replace(/_/g, " ")}.`
+    result: { winner, reason, ...resultDetails },
+    message: handCompleteMessage(winner, reason)
   };
+}
+
+function handCompleteMessage(winner: string, reason: string): string {
+  if (winner === "split") {
+    return reason === "river_completed" ? "Pot split at showdown." : "Pot split.";
+  }
+  if (reason === "river_completed") {
+    const winnerLabel = winner === "hero" ? "Hero" : "Opponent";
+    return `${winnerLabel} wins at showdown.`;
+  }
+  if (winner === "showdown") {
+    return "Showdown reached. Hand saved for review.";
+  }
+
+  const winnerLabel = winner === "hero" ? "Hero" : "Opponent";
+  return `${winnerLabel} wins. ${friendlyResultReason(winner, reason)}`;
+}
+
+function friendlyResultReason(winner: string, reason: string): string {
+  const heroWins = winner === "hero";
+  if (reason.includes("folded")) {
+    const stage = reason.includes("preflop") ? " preflop" : "";
+    return heroWins ? `Opponent folded${stage}.` : `Hero folded${stage}.`;
+  }
+  if (reason.includes("allin")) {
+    return "The all-in preflop branch ended the hand.";
+  }
+  if (reason.includes("4bet") || reason.includes("reraised")) {
+    return "The available preflop tree ended here.";
+  }
+  if (reason.includes("tree_closed")) {
+    return "The supported line ended here.";
+  }
+  return "The pot was awarded.";
 }
 
 function addHeroAction(state: TrainerState, action: TrainerAction): TrainerState {

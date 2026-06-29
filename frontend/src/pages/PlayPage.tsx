@@ -3,8 +3,12 @@ import { Link } from "react-router-dom";
 
 import { analyzeHand, getAnalysis, saveHand } from "../api";
 import PlayingCard from "../components/PlayingCard";
+import SettlementSummaryPanel from "../components/SettlementSummaryPanel";
 import type { AnalysisJob, HandRead } from "../types";
 import { applyHeroAction, formatActionEntry, legalHeroActions, startNewHand, toHandPayload, type SeatMode, type TrainerAction } from "../poker/engine";
+import { settlementForTrainerState } from "../poker/settlement";
+import { shouldRevealOpponentCards } from "../poker/visibility";
+import { formatBb } from "../settlement";
 import { analysisControlFor } from "./playAnalysisControl";
 
 const SEAT_MODE_STORAGE_KEY = "poker-trainer-seat-mode";
@@ -22,6 +26,12 @@ export default function PlayPage() {
 
   const legalActions = useMemo(() => legalHeroActions(hand), [hand]);
   const analysisControl = analysisControlFor(savedHand, analysisJob);
+  const settlement = useMemo(() => settlementForTrainerState(hand), [hand]);
+  const revealVillainCards = shouldRevealOpponentCards(hand.result);
+  const hiddenBoardSlots = hand.handOver ? 0 : 5 - hand.visibleBoard.length;
+  const displayedHeroStack = settlement ? settlement.heroAfterBb : hand.heroStack;
+  const displayedVillainStack = settlement ? settlement.opponentAfterBb : hand.villainStack;
+  const displayedPot = settlement && settlement.status !== "showdown" ? 0 : hand.pot;
 
   useEffect(() => {
     if (!hand.handOver || saveAttempted) {
@@ -94,31 +104,31 @@ export default function PlayPage() {
     <section className="page-grid play-grid">
       <div className="table-surface">
         <div className="seat villain-seat">
+          <span className="seat-stack">{formatBb(displayedVillainStack)}</span>
           <span className="seat-label">{hand.villainPosition}</span>
           <div className="cards">
-            {hand.handOver ? hand.villainCards.map((card) => <PlayingCard key={card} value={card} />) : <><PlayingCard value="??" muted /><PlayingCard value="??" muted /></>}
+            {revealVillainCards ? hand.villainCards.map((card) => <PlayingCard key={card} value={card} />) : <><PlayingCard value="??" muted /><PlayingCard value="??" muted /></>}
           </div>
-          <span>{hand.villainStack.toFixed(1)}bb</span>
         </div>
 
         <div className="board-row">
           {hand.visibleBoard.map((card) => <PlayingCard key={card} value={card} />)}
-          {Array.from({ length: 5 - hand.visibleBoard.length }).map((_, index) => (
+          {Array.from({ length: hiddenBoardSlots }).map((_, index) => (
             <PlayingCard key={`empty-${index}`} value="--" muted />
           ))}
         </div>
 
         <div className="pot-display">
           <span>Pot</span>
-          <strong>{hand.pot.toFixed(1)}bb</strong>
+          <strong>{formatBb(displayedPot)}</strong>
         </div>
 
         <div className="seat hero-seat">
           <span className="seat-label">Hero {hand.heroPosition}</span>
+          <span className="seat-stack">{formatBb(displayedHeroStack)}</span>
           <div className="cards">
             {hand.heroCards.map((card) => <PlayingCard key={card} value={card} />)}
           </div>
-          <span>{hand.heroStack.toFixed(1)}bb</span>
         </div>
       </div>
 
@@ -162,6 +172,8 @@ export default function PlayPage() {
             </button>
           )}
         </div>
+
+        {settlement && <SettlementSummaryPanel settlement={settlement} />}
 
         {hand.handOver && (
           <div className="result-box">
