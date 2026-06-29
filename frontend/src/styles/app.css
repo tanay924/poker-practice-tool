@@ -93,12 +93,22 @@ main {
 }
 
 .play-grid {
-  grid-template-columns: minmax(0, 1.2fr) minmax(320px, 0.8fr);
+  grid-template-columns: minmax(600px, 1.35fr) minmax(320px, 0.65fr);
+}
+
+.preflop-grid {
+  grid-template-columns: minmax(0, 1.05fr) minmax(340px, 0.95fr);
+}
+
+.preflop-main {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
 }
 
 .table-surface {
   align-items: center;
-  aspect-ratio: 1.45;
+  aspect-ratio: 1.55;
   background:
     radial-gradient(circle at center, rgba(255, 255, 255, 0.12), transparent 42%),
     linear-gradient(145deg, #197153, #11543e);
@@ -109,8 +119,27 @@ main {
   display: grid;
   grid-template-rows: 1fr auto auto 1fr;
   justify-items: center;
-  min-height: 520px;
-  padding: clamp(18px, 4vw, 42px);
+  min-height: 590px;
+  padding: clamp(22px, 4.5vw, 54px);
+}
+
+.preflop-table {
+  aspect-ratio: 1.55;
+  grid-template-rows: 1fr auto 1fr;
+  min-height: 470px;
+}
+
+.preflop-center {
+  align-items: center;
+  background: rgba(10, 25, 18, 0.36);
+  border: 1px solid rgba(255, 255, 255, 0.22);
+  border-radius: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  max-width: min(430px, 100%);
+  padding: 12px 14px;
+  text-align: center;
 }
 
 .seat {
@@ -131,33 +160,86 @@ main {
 .cards,
 .board-row {
   display: flex;
-  gap: 8px;
+  gap: clamp(8px, 1.5vw, 14px);
   flex-wrap: wrap;
   justify-content: center;
 }
 
-.card {
-  align-items: center;
+.playing-card {
+  aspect-ratio: 0.7;
   background: #ffffff;
-  border: 1px solid #d8ded9;
-  border-radius: 8px;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.16);
-  color: #1e2b24;
-  display: inline-flex;
-  font-weight: 900;
-  height: 58px;
-  justify-content: center;
-  min-width: 42px;
-  padding: 0 8px;
+  border: 1px solid #d7ded8;
+  border-radius: 7px;
+  box-shadow:
+    0 10px 18px rgba(4, 12, 8, 0.22),
+    inset 0 0 0 2px rgba(255, 255, 255, 0.7);
+  color: #1d2520;
+  display: inline-grid;
+  flex: 0 0 auto;
+  font-family: Georgia, "Times New Roman", serif;
+  height: clamp(82px, 10vw, 116px);
+  overflow: hidden;
+  place-items: center;
+  position: relative;
 }
 
-.card.red {
+.playing-card.red {
   color: #b12d36;
 }
 
-.card.muted {
-  background: #e7ece8;
-  color: #87928c;
+.playing-card.muted {
+  background: #e9eee9;
+  color: #7c8981;
+}
+
+.playing-card.placeholder {
+  background:
+    linear-gradient(135deg, rgba(255, 255, 255, 0.16) 25%, transparent 25%) 0 0 / 12px 12px,
+    linear-gradient(225deg, rgba(255, 255, 255, 0.12) 25%, transparent 25%) 0 0 / 12px 12px,
+    #2d4137;
+  border-color: rgba(255, 255, 255, 0.28);
+  color: rgba(255, 255, 255, 0.72);
+}
+
+.card-corner {
+  align-items: center;
+  display: flex;
+  flex-direction: column;
+  font-size: clamp(0.78rem, 1.25vw, 1rem);
+  font-weight: 900;
+  gap: 0;
+  line-height: 0.9;
+  position: absolute;
+}
+
+.card-corner strong {
+  font-family: Inter, ui-sans-serif, system-ui, sans-serif;
+  line-height: 1;
+}
+
+.card-corner.top {
+  left: 7px;
+  top: 7px;
+}
+
+.card-corner.bottom {
+  bottom: 7px;
+  right: 7px;
+  transform: rotate(180deg);
+}
+
+.card-center-suit {
+  font-size: clamp(2.1rem, 5vw, 3.7rem);
+  line-height: 1;
+  transform: translateY(2px);
+}
+
+.playing-card.placeholder .card-corner {
+  display: none;
+}
+
+.playing-card.placeholder .card-center-suit {
+  font-size: clamp(1.5rem, 3vw, 2.4rem);
 }
 
 .pot-display {
@@ -187,6 +269,28 @@ main {
   padding: 18px;
 }
 
+.preflop-control {
+  align-self: start;
+}
+
+.metric-strip {
+  display: grid;
+  gap: 10px;
+  grid-template-columns: repeat(3, 1fr);
+}
+
+.metric-strip > div {
+  background: #f0f5f1;
+  border: 1px solid #dce4dd;
+  border-radius: 8px;
+  padding: 12px;
+}
+
+.metric-strip strong {
+  display: block;
+  font-size: 1.25rem;
+}
+
 .status-line {
   background: #f0f5f1;
   border-radius: 8px;
@@ -195,6 +299,12 @@ main {
 
 .status-line p {
   margin: 8px 0 0;
+}
+
+.preflop-decision h3 {
+  font-size: clamp(2.2rem, 8vw, 4.6rem);
+  line-height: 0.95;
+  margin: 4px 0;
 }
 
 .status-pill {
@@ -234,6 +344,12 @@ main {
   grid-template-columns: repeat(auto-fit, minmax(110px, 1fr));
 }
 
+.preflop-deal-row {
+  display: grid;
+  gap: 10px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
 button {
   background: #176f51;
   border: 0;
@@ -258,9 +374,33 @@ button.secondary {
   background: #29372f;
 }
 
+button.compact-button {
+  min-height: 38px;
+}
+
 .result-box,
 .panel {
   padding: 16px;
+}
+
+.feedback-box {
+  background: #ffffff;
+  border: 1px solid #dce4dd;
+  border-left: 5px solid #d49b2a;
+  border-radius: 8px;
+  padding: 16px;
+}
+
+.feedback-box.correct {
+  border-left-color: #176f51;
+}
+
+.feedback-box.wrong {
+  border-left-color: #a52b34;
+}
+
+.feedback-box h3 {
+  margin: 0;
 }
 
 .result-box h2,
@@ -343,6 +483,28 @@ th {
   padding: 14px;
 }
 
+.notice-box,
+.error-box {
+  border-radius: 8px;
+  margin-bottom: 14px;
+  padding: 14px;
+}
+
+.notice-box {
+  background: #fff8e8;
+  border: 1px solid #e6c675;
+}
+
+.error-box {
+  background: #fff0f1;
+  border: 1px solid #e0a5ac;
+}
+
+.notice-box p,
+.error-box p {
+  margin: 4px 0 0;
+}
+
 .decision-list {
   display: grid;
   gap: 14px;
@@ -381,6 +543,20 @@ th {
   height: 100%;
 }
 
+.preflop-option.selected {
+  background: #f7f2e6;
+  border-radius: 8px;
+  padding: 8px;
+}
+
+.feedback-box.correct .preflop-option.selected .bar span {
+  background: #176f51;
+}
+
+.feedback-box.wrong .preflop-option.selected .bar span {
+  background: #a52b34;
+}
+
 .upload-box {
   align-items: center;
   background: #ffffff;
@@ -403,6 +579,43 @@ th {
   grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
 }
 
+.range-study-page {
+  max-width: 1480px;
+}
+
+.range-table-stack {
+  display: grid;
+  gap: 24px;
+}
+
+.range-legend {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px 18px;
+}
+
+.range-legend span {
+  align-items: center;
+  color: #33443b;
+  display: inline-flex;
+  font-size: 0.9rem;
+  font-weight: 850;
+  gap: 7px;
+}
+
+.range-legend i {
+  border-radius: 4px;
+  display: inline-block;
+  height: 14px;
+  width: 22px;
+}
+
+.range-chart {
+  display: grid;
+  gap: 14px;
+}
+
 .range-header {
   align-items: flex-start;
   display: flex;
@@ -413,6 +626,74 @@ th {
 .range-header p {
   color: #66746c;
   margin: 0;
+}
+
+.range-matrix-wrap {
+  overflow-x: auto;
+  padding-bottom: 4px;
+}
+
+.range-matrix {
+  display: grid;
+  gap: 3px;
+  grid-template-columns: 28px repeat(13, minmax(50px, 1fr));
+  min-width: 760px;
+}
+
+.range-axis,
+.range-axis-corner {
+  align-items: center;
+  background: #eef3ef;
+  border: 1px solid #dce4dd;
+  border-radius: 5px;
+  color: #526158;
+  display: flex;
+  font-size: 0.75rem;
+  font-weight: 900;
+  justify-content: center;
+  min-height: 26px;
+}
+
+.range-axis-left {
+  min-height: 52px;
+}
+
+.range-cell {
+  align-items: center;
+  aspect-ratio: 1;
+  border: 1px solid rgba(12, 26, 18, 0.18);
+  border-radius: 5px;
+  color: #ffffff;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  justify-content: center;
+  min-height: 52px;
+  outline: 0;
+  padding: 4px;
+  text-align: center;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.45);
+}
+
+.range-cell:focus-visible {
+  box-shadow: 0 0 0 3px rgba(23, 111, 81, 0.3);
+}
+
+.range-cell.empty {
+  color: #738078;
+  text-shadow: none;
+}
+
+.range-cell strong {
+  font-size: 0.78rem;
+  line-height: 1;
+}
+
+.range-cell span {
+  font-size: 0.62rem;
+  font-weight: 850;
+  line-height: 1.1;
+  overflow-wrap: anywhere;
 }
 
 .combo-table {
@@ -448,8 +729,39 @@ th {
   align-self: flex-start;
 }
 
+.preflop-history {
+  display: grid;
+  gap: 8px;
+  list-style: none;
+  padding-left: 0;
+}
+
+.preflop-history li {
+  align-items: center;
+  background: #f7faf7;
+  border: 1px solid #edf1ed;
+  border-radius: 8px;
+  display: grid;
+  gap: 8px;
+  grid-template-columns: 42px minmax(70px, 1fr) 54px 48px;
+  margin: 0;
+  padding: 9px 10px;
+}
+
+.preflop-history span,
+.preflop-history small {
+  color: #66746c;
+  font-weight: 800;
+}
+
+.preflop-history em {
+  color: #3c4b42;
+  font-style: normal;
+}
+
 @media (max-width: 900px) {
-  .play-grid {
+  .play-grid,
+  .preflop-grid {
     grid-template-columns: 1fr;
   }
 
@@ -472,6 +784,15 @@ th {
 
   .strategy-row {
     grid-template-columns: 1fr;
+  }
+
+  .metric-strip,
+  .preflop-deal-row {
+    grid-template-columns: 1fr;
+  }
+
+  .preflop-history li {
+    grid-template-columns: 42px minmax(70px, 1fr);
   }
 
   .combo-table div {

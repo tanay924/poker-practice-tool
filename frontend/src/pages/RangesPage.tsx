@@ -1,86 +1,119 @@
-import { ChangeEvent, useEffect, useState } from "react";
+import { useMemo } from "react";
 
-import { importRange, listRanges } from "../api";
-import type { PreflopRange } from "../types";
+import type { PreflopAction } from "../preflop/engine";
+import { listBundledPreflopRanges, type BundledPreflopRange } from "../preflop/rangeData";
+import {
+  actionPresentation,
+  buildRangeMatrix,
+  formatProbability,
+  MATRIX_RANKS,
+  rangePresentationForSpot,
+  segmentSummary,
+  type RangeActionSegment
+} from "../preflop/rangeMatrix";
+
+const ACTION_ORDER: PreflopAction[] = ["fold", "check", "limp", "call", "raise", "allin"];
 
 export default function RangesPage() {
-  const [ranges, setRanges] = useState<PreflopRange[]>([]);
-  const [message, setMessage] = useState<string | null>(null);
-  const [error, setError] = useState<string | null>(null);
-
-  const refresh = () => {
-    listRanges()
-      .then((next) => {
-        setRanges(next);
-        setError(null);
-      })
-      .catch((err: Error) => setError(err.message));
-  };
-
-  useEffect(() => {
-    refresh();
-  }, []);
-
-  const handleFile = async (event: ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0];
-    if (!file) {
-      return;
-    }
-
-    try {
-      const payload = JSON.parse(await file.text());
-      const imported = await importRange(payload);
-      setMessage(`Imported ${imported.name}`);
-      setError(null);
-      refresh();
-    } catch (err) {
-      setMessage(null);
-      setError(err instanceof Error ? err.message : "Import failed");
-    } finally {
-      event.target.value = "";
-    }
-  };
+  const ranges = useMemo(() => listBundledPreflopRanges(), []);
 
   return (
-    <section className="stack">
+    <section className="stack range-study-page">
       <div className="page-heading">
-        <p className="eyebrow">User-provided strategy files</p>
+        <p className="eyebrow">Bundled 100bb HU cash ranges</p>
         <h2>Ranges</h2>
       </div>
 
-      <label className="upload-box">
-        <span>Import JSON range</span>
-        <input type="file" accept="application/json,.json" onChange={handleFile} />
-      </label>
+      <div className="range-legend panel">
+        {ACTION_ORDER.map((action) => {
+          const presentation = actionPresentation(action);
+          return (
+            <span key={action}>
+              <i style={{ backgroundColor: presentation.color }} />
+              {presentation.label}
+            </span>
+          );
+        })}
+      </div>
 
-      {message && <p className="success-text">{message}</p>}
-      {error && <p className="error-text">{error}</p>}
-
-      <div className="range-grid">
+      <div className="range-table-stack">
         {ranges.map((range) => (
-          <article className="panel" key={range.id}>
-            <div className="range-header">
-              <div>
-                <h3>{range.name}</h3>
-                <p>{range.spot} · {range.stack_bb}bb · {range.source}</p>
-              </div>
-              <span className="status-pill">{Object.keys(range.range_json.actions).length} hands</span>
-            </div>
-            <div className="combo-table">
-              {Object.entries(range.range_json.actions).slice(0, 8).map(([combo, actions]) => (
-                <div key={combo}>
-                  <strong>{combo}</strong>
-                  <span>
-                    {Object.entries(actions)
-                      .map(([action, frequency]) => `${action} ${Math.round(frequency * 100)}%`)
-                      .join(", ")}
-                  </span>
-                </div>
-              ))}
-            </div>
-          </article>
+          <RangeChart key={range.spot} range={range} />
         ))}
       </div>
     </section>
   );
+}
+
+function RangeChart({ range }: { range: BundledPreflopRange }) {
+  const presentation = rangePresentationForSpot(range.spot);
+  const matrix = buildRangeMatrix(range);
+  return (
+    <article className="range-chart panel">
+      <div className="range-header">
+        <div>
+          <h3>{presentation.title}</h3>
+          <p>{presentation.detail}</p>
+        </div>
+        <span className="status-pill">{range.stackBb}bb</span>
+      </div>
+
+      <div className="range-matrix-wrap">
+        <div className="range-matrix" aria-label={`${presentation.title} range table`} role="grid">
+          <div className="range-axis-corner" />
+          {MATRIX_RANKS.map((rank) => (
+            <div className="range-axis range-axis-top" key={`top-${rank}`}>
+              {rank}
+            </div>
+          ))}
+          {MATRIX_RANKS.map((rank, row) => (
+            <RowCells cells={matrix.filter((cell) => cell.row === row)} key={`row-${rank}`} rangeSpot={range.spot} rowLabel={rank} />
+          ))}
+        </div>
+      </div>
+    </article>
+  );
+}
+
+function RowCells({
+  cells,
+  rangeSpot,
+  rowLabel
+}: {
+  cells: ReturnType<typeof buildRangeMatrix>;
+  rangeSpot: string;
+  rowLabel: string;
+}) {
+  return (
+    <>
+      <div className="range-axis range-axis-left">{rowLabel}</div>
+      {cells.map((cell) => {
+        const label = `${cell.handKey}: ${segmentSummary(cell.segments) || "No action"}`;
+        return (
+          <div
+            aria-label={label}
+            className={`range-cell ${cell.segments.length === 0 ? "empty" : ""}`}
+            key={`${rangeSpot}-${cell.handKey}`}
+            role="gridcell"
+            style={{ background: cell.background }}
+            tabIndex={0}
+            title={label}
+          >
+            <strong>{cell.handKey}</strong>
+            <span>{compactCellSummary(cell.segments)}</span>
+          </div>
+        );
+      })}
+    </>
+  );
+}
+
+function compactCellSummary(segments: RangeActionSegment[]): string {
+  if (segments.length === 0) {
+    return "-";
+  }
+  if (segments.length === 1) {
+    return `${segments[0].label[0]} ${formatProbability(segments[0].probability)}`;
+  }
+  return segments.map((segment) => `${segment.label[0]}${formatProbability(segment.probability)}`).join(" ");
 }

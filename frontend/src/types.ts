@@ -5,8 +5,13 @@ export interface ActionEntry {
   actor: "SB" | "BB" | "hero" | "villain";
   action: string;
   amount_bb: number;
+  target_amount_bb?: number;
   pot_after: number;
   node: string;
+  spot_id?: string;
+  hand_key?: string;
+  frequency?: number;
+  automatic?: boolean;
 }
 
 export interface HandCreate {
@@ -60,7 +65,42 @@ export interface SolverStreetResult {
   confidence: string;
 }
 
+export interface PreflopResult {
+  actor: string;
+  correct: boolean;
+  hand_key: string;
+  hero_action: string;
+  node: string;
+  options: Record<string, number>;
+  selected_frequency: number;
+  spot_id: string;
+  spot_name: string;
+  street: "preflop";
+}
+
 export interface SolverOutput {
+  metadata?: {
+    solver?: {
+      name: string;
+      version?: string;
+      commit?: string;
+    };
+    config?: Record<string, unknown>;
+    range_hashes?: Record<string, string>;
+    duration_seconds?: number;
+    cache?: {
+      hit: boolean;
+    };
+  };
+  preflop_results?: PreflopResult[];
+  preflop_summary?: {
+    overall: string;
+    blocks_postflop: boolean;
+    decision_count: number;
+    correct_count: number;
+  };
+  postflop_status?: string;
+  postflop_error?: string;
   street_results: SolverStreetResult[];
   summary: {
     overall: string;

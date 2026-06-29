@@ -11,12 +11,14 @@ from app.analysis.service import process_next_analysis_job
 from app.api import analysis, hands, ranges
 from app.db import SessionLocal, init_db
 from app.seed import seed_database
+from app.solver.adapters import SolverAdapter
+from app.solver.factory import create_solver_from_env
 
 
-async def worker_loop() -> None:
+async def worker_loop(solver: SolverAdapter | None = None) -> None:
     while True:
         with SessionLocal() as db:
-            await process_next_analysis_job(db)
+            await process_next_analysis_job(db, solver=solver)
         await asyncio.sleep(1.0)
 
 
@@ -26,9 +28,10 @@ async def lifespan(app: FastAPI):
     with SessionLocal() as db:
         await seed_database(db)
 
+    solver = create_solver_from_env()
     worker_task: asyncio.Task | None = None
     if os.getenv("POKER_TRAINER_WORKER_AUTOSTART", "1") != "0":
-        worker_task = asyncio.create_task(worker_loop())
+        worker_task = asyncio.create_task(worker_loop(solver))
 
     try:
         yield
@@ -37,6 +40,7 @@ async def lifespan(app: FastAPI):
             worker_task.cancel()
             with suppress(asyncio.CancelledError):
                 await worker_task
+        await solver.close()
 
 
 app = FastAPI(title="Local Poker Trainer", lifespan=lifespan)
@@ -47,6 +51,7 @@ app.add_middleware(
         "http://localhost:5173",
         "http://127.0.0.1:5173",
     ],
+    allow_origin_regex=r"^http://(localhost|127\.0\.0\.1|\[::1\]):\d+$",
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],

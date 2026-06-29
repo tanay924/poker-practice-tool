@@ -1,14 +1,9 @@
 import { useEffect, useMemo, useState } from "react";
 
 import { analyzeHand, getAnalysis, saveHand } from "../api";
+import PlayingCard from "../components/PlayingCard";
 import type { AnalysisJob, HandRead } from "../types";
-import { applyHeroAction, legalHeroActions, startNewHand, toHandPayload, type TrainerAction } from "../poker/engine";
-
-function Card({ value, muted = false }: { value: string; muted?: boolean }) {
-  const suit = value.slice(-1);
-  const isRed = suit === "h" || suit === "d";
-  return <span className={`card ${isRed ? "red" : ""} ${muted ? "muted" : ""}`}>{value}</span>;
-}
+import { applyHeroAction, formatActionEntry, legalHeroActions, startNewHand, toHandPayload, type TrainerAction } from "../poker/engine";
 
 export default function PlayPage() {
   const [hand, setHand] = useState(() => startNewHand());
@@ -88,15 +83,15 @@ export default function PlayPage() {
         <div className="seat villain-seat">
           <span className="seat-label">BB</span>
           <div className="cards">
-            {hand.handOver ? hand.villainCards.map((card) => <Card key={card} value={card} />) : <><Card value="??" muted /><Card value="??" muted /></>}
+            {hand.handOver ? hand.villainCards.map((card) => <PlayingCard key={card} value={card} />) : <><PlayingCard value="??" muted /><PlayingCard value="??" muted /></>}
           </div>
           <span>{hand.villainStack.toFixed(1)}bb</span>
         </div>
 
         <div className="board-row">
-          {hand.visibleBoard.map((card) => <Card key={card} value={card} />)}
+          {hand.visibleBoard.map((card) => <PlayingCard key={card} value={card} />)}
           {Array.from({ length: 5 - hand.visibleBoard.length }).map((_, index) => (
-            <Card key={`empty-${index}`} value="--" muted />
+            <PlayingCard key={`empty-${index}`} value="--" muted />
           ))}
         </div>
 
@@ -108,7 +103,7 @@ export default function PlayPage() {
         <div className="seat hero-seat">
           <span className="seat-label">Hero SB</span>
           <div className="cards">
-            {hand.heroCards.map((card) => <Card key={card} value={card} />)}
+            {hand.heroCards.map((card) => <PlayingCard key={card} value={card} />)}
           </div>
           <span>{hand.heroStack.toFixed(1)}bb</span>
         </div>
@@ -122,8 +117,8 @@ export default function PlayPage() {
 
         <div className="action-buttons">
           {legalActions.map((action) => (
-            <button key={action} type="button" onClick={() => act(action)}>
-              {action.replace("_", " ")}
+            <button key={`${action.action}-${action.amountBb}-${action.targetAmountBb ?? ""}`} type="button" onClick={() => act(action)}>
+              {action.label}
             </button>
           ))}
           {hand.handOver && (
@@ -155,8 +150,7 @@ export default function PlayPage() {
               <li key={`${entry.street}-${entry.actor}-${entry.action}-${index}`}>
                 <span>{entry.street}</span>
                 <strong>{entry.actor}</strong>
-                {entry.action.replace("_", " ")}
-                {entry.amount_bb > 0 ? ` ${entry.amount_bb}bb` : ""}
+                {formatActionEntry(entry)}
               </li>
             ))}
           </ol>

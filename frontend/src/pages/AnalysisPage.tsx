@@ -63,7 +63,11 @@ export default function AnalysisPage() {
                 <td>{item.board.join(" ")}</td>
                 <td><span className={`status-pill ${item.status}`}>{item.status}</span></td>
                 <td>
-                  {item.status === "ready" ? <Link to={`/analysis/${item.hand_id}`}>Answer sheet</Link> : <span className="muted-text">Waiting</span>}
+                  {item.status === "ready" || item.status === "failed" || item.status === "unsupported" ? (
+                    <Link to={`/analysis/${item.hand_id}`}>{item.status === "ready" ? "Answer sheet" : "Details"}</Link>
+                  ) : (
+                    <span className="muted-text">Waiting</span>
+                  )}
                 </td>
               </tr>
             ))}
