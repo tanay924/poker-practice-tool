@@ -147,7 +147,12 @@ export default function PlayPage() {
 
         <div className="action-buttons">
           {legalActions.map((action) => (
-            <button key={`${action.action}-${action.amountBb}-${action.targetAmountBb ?? ""}`} type="button" onClick={() => act(action)}>
+            <button
+              className={actionButtonClass(action.action)}
+              key={`${action.action}-${action.amountBb}-${action.targetAmountBb ?? ""}`}
+              type="button"
+              onClick={() => act(action)}
+            >
               {action.label}
             </button>
           ))}
@@ -185,7 +190,8 @@ export default function PlayPage() {
             {hand.actionHistory.map((entry, index) => (
               <li key={`${entry.street}-${entry.actor}-${entry.action}-${index}`}>
                 <span>{entry.street}</span>
-                <strong>{entry.actor}</strong>
+                {" "}
+                <strong>{entry.actor}</strong>{" "}
                 {formatActionEntry(entry)}
               </li>
             ))}
@@ -206,4 +212,17 @@ function readSeatMode(): SeatMode {
 
 function writeSeatMode(mode: SeatMode) {
   window.localStorage.setItem(SEAT_MODE_STORAGE_KEY, mode);
+}
+
+function actionButtonClass(action: TrainerAction["action"]) {
+  if (action === "fold") {
+    return "action-danger";
+  }
+  if (action === "check" || action === "call" || action === "limp") {
+    return "action-passive";
+  }
+  if (action === "allin") {
+    return "action-study";
+  }
+  return "";
 }

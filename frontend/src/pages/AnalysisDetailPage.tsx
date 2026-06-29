@@ -56,7 +56,7 @@ export default function AnalysisDetailPage() {
         </div>
         <div>
           <span className="label">Status</span>
-          <strong>{detail.job?.status ?? "not requested"}</strong>
+          <span className={`status-pill ${detail.job?.status ?? ""}`}>{detail.job?.status ?? "not requested"}</span>
         </div>
         <div>
           <span className="label">Solver</span>
