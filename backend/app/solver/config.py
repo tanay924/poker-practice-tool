@@ -20,6 +20,7 @@ class SolverSettings:
     shark_thread_count: int | None = None
     shark_force_donk_check: bool = True
     shark_postflop_raises_enabled: bool = False
+    shark_minimum_bet_bb: int = 1
     shark_timeout_seconds: float = 300.0
 
     @property
@@ -37,6 +38,7 @@ class SolverSettings:
             "thread_count": self.effective_thread_count,
             "force_donk_check": self.shark_force_donk_check,
             "postflop_raises_enabled": self.shark_postflop_raises_enabled,
+            "minimum_bet_bb": self.shark_minimum_bet_bb,
         }
 
 
@@ -52,6 +54,7 @@ def settings_from_env() -> SolverSettings:
         shark_thread_count=_optional_int_env("POKER_TRAINER_SHARK_THREAD_COUNT"),
         shark_force_donk_check=_bool_env("POKER_TRAINER_SHARK_FORCE_DONK_CHECK", True),
         shark_postflop_raises_enabled=_bool_env("POKER_TRAINER_SHARK_POSTFLOP_RAISES_ENABLED", False),
+        shark_minimum_bet_bb=_int_env("POKER_TRAINER_SHARK_MINIMUM_BET_BB", 1),
         shark_timeout_seconds=_float_env("POKER_TRAINER_SHARK_TIMEOUT_SECONDS", 300.0),
     )
 

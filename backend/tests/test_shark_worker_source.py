@@ -31,3 +31,12 @@ def test_shark_worker_resolves_isomorphic_chance_cards() -> None:
     assert "isomorphism_card" in text
     assert "isomorphism_ref" in text
     assert "get_card_at_index" in text
+
+
+def test_shark_worker_supports_one_bb_minimum_bets() -> None:
+    project_root = Path(__file__).parents[2]
+    worker_source = project_root / "tools" / "shark_worker" / "shark_worker.cpp"
+    setup_script = project_root / "tools" / "setup_shark_worker.ps1"
+
+    assert 'settings.value("minimum_bet_bb", 1)' in worker_source.read_text(encoding="utf-8")
+    assert "action.amount >= minimum_raise_size" in setup_script.read_text(encoding="utf-8")

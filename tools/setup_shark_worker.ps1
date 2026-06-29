@@ -119,6 +119,28 @@ if (-not $rangeText.Contains($newRangeBlock)) {
     Set-Content -Path $rangePath -Value $rangeText -Encoding utf8
 }
 
+$treePath = Join-Path $ResolvedTarget "src\tree\GameTree.cpp"
+$treeText = Get-Content -Raw $treePath
+$oldBetValidationBlock = @'
+  case Action::BET:
+    return call_amount == 0 &&
+           ((action.amount > minimum_raise_size && action.amount <= stack) ||
+            (action.amount > 0 && action.amount == stack));
+'@
+$newBetValidationBlock = @'
+  case Action::BET:
+    return call_amount == 0 &&
+           ((action.amount >= minimum_raise_size && action.amount <= stack) ||
+            (action.amount > 0 && action.amount == stack));
+'@
+if (-not $treeText.Contains($newBetValidationBlock)) {
+    if (-not $treeText.Contains($oldBetValidationBlock)) {
+        throw "Could not find the Shark bet minimum validation block to patch."
+    }
+    $treeText = $treeText.Replace($oldBetValidationBlock, $newBetValidationBlock)
+    Set-Content -Path $treePath -Value $treeText -Encoding utf8
+}
+
 $cmakePath = Join-Path $ResolvedTarget "CMakeLists.txt"
 $cmakeText = Get-Content -Raw $cmakePath
 if (-not $cmakeText.Contains("add_executable(shark_worker")) {

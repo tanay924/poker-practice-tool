@@ -269,7 +269,7 @@ std::shared_ptr<SolvedTree> solve_tree(const json &solver_input, const json &set
   PreflopRange ip_range{ranges.at(ip_key).get<std::string>()};
 
   const int stack = static_cast<int>(std::round(effective_stack));
-  const int min_bet = 2;
+  const int min_bet = settings.value("minimum_bet_bb", 1);
   TreeBuilderSettings tree_settings{
       oop_range,
       ip_range,

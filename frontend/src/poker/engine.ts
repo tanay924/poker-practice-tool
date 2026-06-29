@@ -72,7 +72,7 @@ interface PostflopBranch {
 
 const RANKS = ["A", "K", "Q", "J", "T", "9", "8", "7", "6", "5", "4", "3", "2"];
 const SUITS = ["s", "h", "d", "c"];
-const MINIMUM_BET_BB = 2;
+const MINIMUM_BET_BB = 1;
 
 export function buildDeck(): string[] {
   return RANKS.flatMap((rank) => SUITS.map((suit) => `${rank}${suit}`));
@@ -573,7 +573,7 @@ function actionOption(action: Exclude<CanonicalAction, "raise_to" | "raise" | "l
 function uniqueLegalActions(actions: TrainerAction[]): TrainerAction[] {
   const unique: TrainerAction[] = [];
   for (const action of actions) {
-    if ((action.action === "bet" || action.action === "raise_to") && action.amountBb <= MINIMUM_BET_BB) {
+    if ((action.action === "bet" || action.action === "raise_to") && action.amountBb < MINIMUM_BET_BB) {
       continue;
     }
     if (!unique.some((candidate) => sameAction(candidate, action))) {
