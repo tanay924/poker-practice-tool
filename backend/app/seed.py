@@ -2,10 +2,8 @@ from __future__ import annotations
 
 from sqlalchemy.orm import Session
 
-from app.analysis.service import build_solver_input, compute_cache_key
-from app.models import AnalysisJob, Hand, PreflopRange, SolverCache, utc_now
+from app.models import Hand, PreflopRange
 from app.ranges.parser import parse_preflop_range
-from app.solver.adapters import MockSolverAdapter
 
 
 SAMPLE_RANGE = {
@@ -87,24 +85,4 @@ async def seed_database(db: Session) -> None:
     db.commit()
     db.refresh(hand)
 
-    solver_input = build_solver_input(hand)
-    solver_output = await MockSolverAdapter(delay_seconds=0).solve(solver_input)
-    cache_key = compute_cache_key(solver_input)
-    db.add(
-        SolverCache(
-            cache_key=cache_key,
-            solver_input_json=solver_input,
-            solver_output_json=solver_output,
-        )
-    )
-    db.add(
-        AnalysisJob(
-            hand_id=hand.id,
-            status="ready",
-            started_at=utc_now(),
-            finished_at=utc_now(),
-            solver_input_json=solver_input,
-            solver_output_json=solver_output,
-        )
-    )
     db.commit()

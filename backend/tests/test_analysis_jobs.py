@@ -7,7 +7,21 @@ from app.models import AnalysisJob, Hand
 
 
 class BlankFailureSolver:
-    solver_name = "blank_failure"
+    solver_name = "shark"
+
+    def solver_metadata(self) -> dict[str, str]:
+        return {"name": "shark", "version": "test", "commit": "test"}
+
+    def cache_settings(self) -> dict[str, object]:
+        return {
+            "iterations": 100,
+            "min_exploitability_pct": 0.1,
+            "all_in_threshold": 0.67,
+            "thread_count": 1,
+            "force_donk_check": True,
+            "postflop_raises_enabled": False,
+            "minimum_bet_bb": 1,
+        }
 
     async def solve(self, solver_input):
         raise AssertionError()
@@ -16,23 +30,58 @@ class BlankFailureSolver:
         return None
 
 
+def make_integrated_hand() -> Hand:
+    return Hand(
+        hero_position="SB",
+        villain_position="BB",
+        hero_cards="AsKd",
+        villain_cards="QcJh",
+        board_json=["Ks", "7d", "2c", "4h", "9s"],
+        stack_bb=100,
+        pot=5.0,
+        action_history_json=[
+            {
+                "street": "preflop",
+                "actor": "SB",
+                "action": "raise",
+                "amount_bb": 2.5,
+                "pot_after": 2.5,
+                "node": "SB preflop decision",
+                "spot_id": "HU_SB_OPEN_2_5BB_OR_LIMP_100BB",
+                "hand_key": "AA",
+                "automatic": False,
+            },
+            {
+                "street": "preflop",
+                "actor": "BB",
+                "action": "call",
+                "amount_bb": 2.5,
+                "pot_after": 5,
+                "node": "BB versus SB open",
+                "spot_id": "HU_SRP_BB_VS_SB_OPEN_100BB",
+                "hand_key": "K9s",
+                "automatic": True,
+            },
+            {
+                "street": "flop",
+                "actor": "BB",
+                "action": "check",
+                "amount_bb": 0,
+                "pot_after": 5,
+                "node": "BB flop decision",
+            },
+        ],
+        result_json={"winner": "showdown"},
+    )
+
+
 def test_analysis_job_creation_is_idempotent() -> None:
     engine = create_engine("sqlite:///:memory:", connect_args={"check_same_thread": False})
     TestingSession = sessionmaker(bind=engine, autoflush=False, autocommit=False)
     Base.metadata.create_all(bind=engine)
 
     with TestingSession() as db:
-        hand = Hand(
-            hero_position="SB",
-            villain_position="BB",
-            hero_cards="AsKd",
-            villain_cards="QcJh",
-            board_json=["Ks", "7d", "2c", "4h", "9s"],
-            stack_bb=100,
-            pot=11.0,
-            action_history_json=[],
-            result_json={"winner": "showdown"},
-        )
+        hand = make_integrated_hand()
         db.add(hand)
         db.commit()
         db.refresh(hand)
@@ -52,17 +101,7 @@ def test_failed_analysis_job_is_requeued_for_retry() -> None:
     Base.metadata.create_all(bind=engine)
 
     with TestingSession() as db:
-        hand = Hand(
-            hero_position="SB",
-            villain_position="BB",
-            hero_cards="AsKd",
-            villain_cards="QcJh",
-            board_json=["Ks", "7d", "2c", "4h", "9s"],
-            stack_bb=100,
-            pot=11.0,
-            action_history_json=[],
-            result_json={"winner": "showdown"},
-        )
+        hand = make_integrated_hand()
         db.add(hand)
         db.commit()
         db.refresh(hand)
@@ -97,17 +136,7 @@ def test_blank_solver_exception_records_exception_type() -> None:
     Base.metadata.create_all(bind=engine)
 
     with TestingSession() as db:
-        hand = Hand(
-            hero_position="SB",
-            villain_position="BB",
-            hero_cards="AsKd",
-            villain_cards="QcJh",
-            board_json=["Ks", "7d", "2c", "4h", "9s"],
-            stack_bb=100,
-            pot=11.0,
-            action_history_json=[],
-            result_json={"winner": "showdown"},
-        )
+        hand = make_integrated_hand()
         db.add(hand)
         db.commit()
         db.refresh(hand)

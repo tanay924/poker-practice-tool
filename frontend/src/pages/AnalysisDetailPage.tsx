@@ -183,9 +183,6 @@ function formatSolverLabel(solver: { name: string; version?: string; commit?: st
   if (solver.name === "shark") {
     return `Shark ${solver.version ?? ""}`.trim();
   }
-  if (solver.name === "mock") {
-    return "Mock";
-  }
   return [solver.name, solver.version].filter(Boolean).join(" ");
 }
 

@@ -81,28 +81,25 @@ def prepare_solver_input(db: Session, hand: Hand, solver: SolverAdapter) -> dict
     preflop_analysis = analyze_preflop_actions(solver_input["action_history"])
     solver_input["preflop_analysis"] = preflop_analysis
 
-    if getattr(solver, "solver_name", "mock") == "shark":
-        solver_input["solver"] = solver.solver_metadata()
-        solver_input["solver_settings"] = solver.cache_settings()
-        if has_integrated_preflop_metadata(solver_input["action_history"]):
-            branch = derive_postflop_branch(solver_input["action_history"])
-            if branch is not None:
-                solver_input["ranges"] = {
-                    "branch_id": branch["branch_id"],
-                    "range_hashes": branch["range_hashes"],
-                    "shark_ranges": branch["shark_ranges"],
-                    "line": branch["line"],
-                }
-                solver_input["postflop_branch_id"] = branch["branch_id"]
-                solver_input["starting_pot_bb"] = branch["starting_pot_bb"]
-                solver_input["effective_stack_bb"] = branch["effective_stack_bb"]
-            else:
-                solver_input["postflop_skip_reason"] = "preflop ended before a supported postflop branch"
+    solver_input["solver"] = solver.solver_metadata()
+    solver_input["solver_settings"] = solver.cache_settings()
+    if has_integrated_preflop_metadata(solver_input["action_history"]):
+        branch = derive_postflop_branch(solver_input["action_history"])
+        if branch is not None:
+            solver_input["ranges"] = {
+                "branch_id": branch["branch_id"],
+                "range_hashes": branch["range_hashes"],
+                "shark_ranges": branch["shark_ranges"],
+                "line": branch["line"],
+            }
+            solver_input["postflop_branch_id"] = branch["branch_id"]
+            solver_input["starting_pot_bb"] = branch["starting_pot_bb"]
+            solver_input["effective_stack_bb"] = branch["effective_stack_bb"]
         else:
-            resolved_ranges = resolve_hu_srp_ranges(db, stack_bb=hand.stack_bb)
-            solver_input["ranges"] = resolved_ranges.to_solver_payload()
+            solver_input["postflop_skip_reason"] = "preflop ended before a supported postflop branch"
     else:
-        solver_input["solver"] = {"name": "mock", "version": "deterministic-local"}
+        resolved_ranges = resolve_hu_srp_ranges(db, stack_bb=hand.stack_bb)
+        solver_input["ranges"] = resolved_ranges.to_solver_payload()
     return solver_input
 
 

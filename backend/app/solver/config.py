@@ -10,7 +10,7 @@ DEFAULT_SHARK_COMMIT = "c9dc07d"
 
 @dataclass(frozen=True)
 class SolverSettings:
-    solver_name: str = "mock"
+    solver_name: str = "shark"
     shark_worker_path: str | None = None
     shark_version: str = DEFAULT_SHARK_TAG
     shark_commit: str = DEFAULT_SHARK_COMMIT
@@ -44,7 +44,7 @@ class SolverSettings:
 
 def settings_from_env() -> SolverSettings:
     return SolverSettings(
-        solver_name=os.getenv("POKER_TRAINER_SOLVER", "mock").strip().lower(),
+        solver_name="shark",
         shark_worker_path=_empty_to_none(os.getenv("POKER_TRAINER_SHARK_PATH")),
         shark_version=os.getenv("POKER_TRAINER_SHARK_VERSION", DEFAULT_SHARK_TAG).strip(),
         shark_commit=os.getenv("POKER_TRAINER_SHARK_COMMIT", DEFAULT_SHARK_COMMIT).strip(),
