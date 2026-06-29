@@ -132,6 +132,27 @@ int find_action_index(const ActionNode *node, const json &entry) {
   return -1;
 }
 
+Node *chance_child_for_card(const ChanceNode *node, const Card &card) {
+  const int card_value = static_cast<int>(card);
+  if (Node *child = node->get_child(card_value)) {
+    return child;
+  }
+
+  const auto &iso_data = node->get_isomorphism_data();
+  for (size_t i = 0; i < iso_data.isomorphism_card.size(); ++i) {
+    if (iso_data.isomorphism_card[i] != card_value) {
+      continue;
+    }
+
+    const int representative_card = node->get_card_at_index(iso_data.isomorphism_ref[i]);
+    if (representative_card >= 0) {
+      return node->get_child(representative_card);
+    }
+  }
+
+  return nullptr;
+}
+
 bool combo_overlaps_board(const PreflopCombo &combo, const std::vector<Card> &board) {
   for (const auto &card : board) {
     if (combo.hand1 == card || combo.hand2 == card) {
@@ -325,8 +346,12 @@ json analyze_hand(const json &message) {
     while (current && current->get_node_type() == NodeType::CHANCE_NODE) {
       auto *chance = dynamic_cast<ChanceNode *>(current);
       const size_t card_index = current_board.size() - 1;
-      Card next_card{solver_input.at("board").at(card_index).get<std::string>().c_str()};
-      current = chance->get_child(static_cast<int>(next_card));
+      const std::string next_card_text = solver_input.at("board").at(card_index).get<std::string>();
+      Card next_card{next_card_text.c_str()};
+      current = chance_child_for_card(chance, next_card);
+      if (!current) {
+        throw std::runtime_error("chance card is not available in Shark tree: " + next_card_text);
+      }
     }
 
     if (!current || current->get_node_type() != NodeType::ACTION_NODE) {
