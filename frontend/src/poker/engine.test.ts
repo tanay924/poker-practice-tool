@@ -282,6 +282,46 @@ const baseState: TrainerState = {
 {
   const hand = startNewHand({
     heroCards: ["7c", "2d"],
+    villainCards: ["As", "Ks"],
+    board: ["2h", "7h", "Jc", "4s", "Td"],
+    rng: fixedRng([0.01])
+  });
+  const postflop = choose(hand, "raise");
+
+  assert.equal(postflop.handOver, false);
+  assert.equal(postflop.street, "flop");
+  assert.equal(postflop.preflopBlocked, true);
+  assert.equal(postflop.actionHistory[0].action, "raise");
+  assert.equal(postflop.actionHistory[0].frequency, 0);
+  assert.equal(postflop.actionHistory[1].actor, "BB");
+  assert.equal(postflop.actionHistory[1].action, "call");
+  assert.equal(postflop.actionHistory[1].automatic, true);
+}
+
+{
+  const hand = startNewHand({
+    heroPosition: "BB",
+    heroCards: ["7c", "2d"],
+    villainCards: ["As", "Ah"],
+    board: ["2h", "7h", "Jc", "4s", "Td"],
+    rng: fixedRng([0.01])
+  });
+  const postflop = choose(hand, "raise");
+
+  assert.equal(postflop.handOver, false);
+  assert.equal(postflop.street, "flop");
+  assert.equal(postflop.preflopBlocked, true);
+  assert.equal(postflop.actionHistory[1].actor, "BB");
+  assert.equal(postflop.actionHistory[1].action, "raise");
+  assert.equal(postflop.actionHistory[1].frequency, 0);
+  assert.equal(postflop.actionHistory[2].actor, "SB");
+  assert.equal(postflop.actionHistory[2].action, "call");
+  assert.equal(postflop.actionHistory[2].automatic, true);
+}
+
+{
+  const hand = startNewHand({
+    heroCards: ["7c", "2d"],
     villainCards: ["Qc", "4c"],
     board: ["2h", "7h", "Jc", "4s", "Td"],
     rng: fixedRng([0.99])

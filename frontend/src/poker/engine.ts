@@ -290,7 +290,7 @@ function advanceAfterHeroSbOpen(state: TrainerState, action: PreflopAction): Tra
 
   if (action === "limp") {
     const bbDecision = buildPreflopDecision(PREFLOP_SPOTS.bbVsSbLimp, "BB", state.villainCards as [string, string]);
-    const bbAction = sampleAction(bbDecision.options, state.rng ?? Math.random).action;
+    const bbAction = automaticPreflopAction(state, bbDecision, "check");
     const afterBbAction = appendPreflopAction(state, bbDecision, bbAction, true);
 
     if (bbAction === "raise") {
@@ -306,7 +306,7 @@ function advanceAfterHeroSbOpen(state: TrainerState, action: PreflopAction): Tra
 
   if (action === "raise") {
     const bbDecision = buildPreflopDecision(PREFLOP_SPOTS.bbVsSbOpen, "BB", state.villainCards as [string, string]);
-    const bbAction = sampleAction(bbDecision.options, state.rng ?? Math.random).action;
+    const bbAction = automaticPreflopAction(state, bbDecision, "call");
     const afterBbAction = appendPreflopAction(state, bbDecision, bbAction, true);
 
     if (bbAction === "call") {
@@ -334,7 +334,7 @@ function advanceAfterHeroBbVsSbOpen(state: TrainerState, action: PreflopAction):
   }
   if (action === "raise") {
     const sbDecision = buildPreflopDecision(PREFLOP_SPOTS.sbVsBbReraise, "SB", state.villainCards as [string, string]);
-    const sbAction = sampleAction(sbDecision.options, state.rng ?? Math.random).action;
+    const sbAction = automaticPreflopAction(state, sbDecision, "call");
     const afterSbAction = appendPreflopAction(state, sbDecision, sbAction, true);
 
     if (sbAction === "call") {
@@ -368,7 +368,7 @@ function advanceAfterHeroBbVsSbLimp(state: TrainerState, action: PreflopAction):
   }
   if (action === "raise") {
     const sbDecision = buildPreflopDecision(PREFLOP_SPOTS.sbLimpVsBbRaise, "SB", state.villainCards as [string, string]);
-    const sbAction = sampleAction(sbDecision.options, state.rng ?? Math.random).action;
+    const sbAction = automaticPreflopAction(state, sbDecision, "call");
     const afterSbAction = appendPreflopAction(state, sbDecision, sbAction, true);
 
     if (sbAction === "call") {
@@ -542,6 +542,13 @@ function preflopActionOption(state: TrainerState, action: PreflopAction): Traine
 
 function probabilityForAction(options: PreflopOption[], action: PreflopAction): number {
   return options.find((option) => option.action === action)?.probability ?? 0;
+}
+
+function automaticPreflopAction(state: TrainerState, decision: TrainerPreflopDecision, continuationAction: PreflopAction): PreflopAction {
+  if (state.preflopBlocked && decision.options.some((option) => option.action === continuationAction)) {
+    return continuationAction;
+  }
+  return sampleAction(decision.options, state.rng ?? Math.random).action;
 }
 
 function dealCards(options: StartHandOptions, rng: Rng): { board: string[]; heroCards: [string, string]; villainCards: [string, string] } {
