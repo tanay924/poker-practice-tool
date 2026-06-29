@@ -4,11 +4,16 @@ import { Link } from "react-router-dom";
 import { analyzeHand, getAnalysis, saveHand } from "../api";
 import PlayingCard from "../components/PlayingCard";
 import type { AnalysisJob, HandRead } from "../types";
-import { applyHeroAction, formatActionEntry, legalHeroActions, startNewHand, toHandPayload, type TrainerAction } from "../poker/engine";
+import { applyHeroAction, formatActionEntry, legalHeroActions, startNewHand, toHandPayload, type SeatMode, type TrainerAction } from "../poker/engine";
 import { analysisControlFor } from "./playAnalysisControl";
 
+const SEAT_MODE_STORAGE_KEY = "poker-trainer-seat-mode";
+const SEAT_MODES: SeatMode[] = ["random", "SB", "BB"];
+
 export default function PlayPage() {
-  const [hand, setHand] = useState(() => startNewHand());
+  const initialSeatMode = readSeatMode();
+  const [seatMode, setSeatMode] = useState<SeatMode>(initialSeatMode);
+  const [hand, setHand] = useState(() => startNewHand({ seatMode: initialSeatMode }));
   const [savedHand, setSavedHand] = useState<HandRead | null>(null);
   const [analysisJob, setAnalysisJob] = useState<AnalysisJob | null>(null);
   const [saveAttempted, setSaveAttempted] = useState(false);
@@ -63,7 +68,7 @@ export default function PlayPage() {
   };
 
   const newHand = () => {
-    setHand(startNewHand());
+    setHand(startNewHand({ seatMode }));
     setSavedHand(null);
     setAnalysisJob(null);
     setSaveAttempted(false);
@@ -80,11 +85,16 @@ export default function PlayPage() {
       .catch((err: Error) => setError(err.message));
   };
 
+  const chooseSeatMode = (mode: SeatMode) => {
+    setSeatMode(mode);
+    writeSeatMode(mode);
+  };
+
   return (
     <section className="page-grid play-grid">
       <div className="table-surface">
         <div className="seat villain-seat">
-          <span className="seat-label">BB</span>
+          <span className="seat-label">{hand.villainPosition}</span>
           <div className="cards">
             {hand.handOver ? hand.villainCards.map((card) => <PlayingCard key={card} value={card} />) : <><PlayingCard value="??" muted /><PlayingCard value="??" muted /></>}
           </div>
@@ -104,7 +114,7 @@ export default function PlayPage() {
         </div>
 
         <div className="seat hero-seat">
-          <span className="seat-label">Hero SB</span>
+          <span className="seat-label">Hero {hand.heroPosition}</span>
           <div className="cards">
             {hand.heroCards.map((card) => <PlayingCard key={card} value={card} />)}
           </div>
@@ -113,6 +123,23 @@ export default function PlayPage() {
       </div>
 
       <aside className="control-panel">
+        <div className="seat-mode-control">
+          <span className="label">Seat</span>
+          <div className="segmented-control" role="group" aria-label="Seat mode">
+            {SEAT_MODES.map((mode) => (
+              <button
+                key={mode}
+                type="button"
+                className={mode === seatMode ? "active" : ""}
+                aria-pressed={mode === seatMode}
+                onClick={() => chooseSeatMode(mode)}
+              >
+                {mode === "random" ? "Random" : mode}
+              </button>
+            ))}
+          </div>
+        </div>
+
         <div className="status-line">
           <span className="status-pill">{hand.street}</span>
           <p>{hand.message}</p>
@@ -167,4 +194,16 @@ export default function PlayPage() {
       </aside>
     </section>
   );
+}
+
+function readSeatMode(): SeatMode {
+  if (typeof window === "undefined") {
+    return "random";
+  }
+  const stored = window.localStorage.getItem(SEAT_MODE_STORAGE_KEY);
+  return stored === "SB" || stored === "BB" || stored === "random" ? stored : "random";
+}
+
+function writeSeatMode(mode: SeatMode) {
+  window.localStorage.setItem(SEAT_MODE_STORAGE_KEY, mode);
 }

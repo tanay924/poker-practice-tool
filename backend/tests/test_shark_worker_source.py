@@ -40,3 +40,13 @@ def test_shark_worker_supports_one_bb_minimum_bets() -> None:
 
     assert 'settings.value("minimum_bet_bb", 1)' in worker_source.read_text(encoding="utf-8")
     assert "action.amount >= minimum_raise_size" in setup_script.read_text(encoding="utf-8")
+
+
+def test_shark_worker_scores_configured_hero_position() -> None:
+    source = Path(__file__).parents[2] / "tools" / "shark_worker" / "shark_worker.cpp"
+    text = source.read_text(encoding="utf-8")
+
+    assert 'solver_input.value("hero_position", "SB")' in text
+    assert 'hero_position == "BB" ? 1 : 2' in text
+    assert 'actor == hero_position || actor == "hero"' in text
+    assert "action_node->get_player() == hero_player" in text

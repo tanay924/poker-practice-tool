@@ -301,6 +301,36 @@ main {
   margin: 8px 0 0;
 }
 
+.seat-mode-control {
+  display: grid;
+  gap: 8px;
+}
+
+.segmented-control {
+  background: #eef3ef;
+  border: 1px solid #d1dbd3;
+  border-radius: 8px;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  padding: 3px;
+}
+
+.segmented-control button {
+  background: transparent;
+  color: #385047;
+  min-height: 36px;
+  padding: 7px 8px;
+}
+
+.segmented-control button:hover {
+  background: #dfe9e2;
+}
+
+.segmented-control button.active {
+  background: #176f51;
+  color: #ffffff;
+}
+
 .preflop-decision h3 {
   font-size: clamp(2.2rem, 8vw, 4.6rem);
   line-height: 0.95;

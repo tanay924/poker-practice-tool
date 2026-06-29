@@ -335,6 +335,8 @@ json analyze_hand(const json &message) {
   Node *current = solved->root.get();
   std::vector<HistoryStep> history;
   json street_results = json::array();
+  const std::string hero_position = solver_input.value("hero_position", "SB");
+  const int hero_player = hero_position == "BB" ? 1 : 2;
 
   for (const auto &entry : solver_input.at("action_history")) {
     const std::string street = entry.value("street", "");
@@ -366,8 +368,8 @@ json analyze_hand(const json &message) {
     const std::string action = action_label(action_node->get_actions()[action_index]);
 
     const std::string actor = entry.value("actor", "");
-    const bool is_hero_sb = actor == "SB" || actor == "hero";
-    if (is_hero_sb && action_node->get_player() == 2) {
+    const bool is_hero_action = actor == hero_position || actor == "hero";
+    if (is_hero_action && action_node->get_player() == hero_player) {
       json strategy = overall_strategy(
           solved->range_manager,
           action_node,
@@ -388,7 +390,7 @@ json analyze_hand(const json &message) {
 
       street_results.push_back({
           {"street", street},
-          {"node", entry.value("node", "SB " + street + " decision")},
+          {"node", entry.value("node", hero_position + " " + street + " decision")},
           {"hero_hand", solver_input.value("hero_cards", "")},
           {"board", solver_input.at("board")},
           {"solver_strategy", strategy},
