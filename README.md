@@ -20,12 +20,21 @@ This app is only for offline study:
 - Background jobs: local worker loop inside the backend process
 - Solver: Shark v2.6.0 local worker for accurate postflop analysis
 
+## Local Setup
+
+Clone this repository and run commands from the repository root unless a section says otherwise:
+
+```powershell
+git clone <repo-url>
+cd poker-practice-tool
+```
+
 ## Run Backend
 
 ```powershell
-cd C:\Users\tanay\Documents\Playground\poker-practice-tool\backend
+cd backend
 python -m pip install -r requirements.txt
-$env:POKER_TRAINER_SHARK_PATH='C:\Users\tanay\Documents\Playground\poker-practice-tool\vendor\shark-2.0\build\shark_worker.exe'
+$env:POKER_TRAINER_SHARK_PATH=(Resolve-Path ..\vendor\shark-2.0\build\shark_worker.exe).Path
 $env:POKER_TRAINER_SHARK_TIMEOUT_SECONDS='900'
 python -m uvicorn app.main:app --host 127.0.0.1 --port 8000
 ```
@@ -46,8 +55,8 @@ Invoke-WebRequest http://127.0.0.1:8000/api/health -UseBasicParsing
 Shark is the only postflop solver path. Build `shark_worker.exe`, point the backend at it, and run Uvicorn without reload:
 
 ```powershell
-cd C:\Users\tanay\Documents\Playground\poker-practice-tool\backend
-$env:POKER_TRAINER_SHARK_PATH='C:\Users\tanay\Documents\Playground\poker-practice-tool\vendor\shark-2.0\build\shark_worker.exe'
+cd backend
+$env:POKER_TRAINER_SHARK_PATH=(Resolve-Path ..\vendor\shark-2.0\build\shark_worker.exe).Path
 $env:POKER_TRAINER_SHARK_TIMEOUT_SECONDS='900'
 python -m uvicorn app.main:app --host 127.0.0.1 --port 8000
 ```
@@ -71,7 +80,6 @@ Missing worker setup, incompatible worker version, missing ranges, unsupported l
 The managed setup script clones the official `24parida/shark-2.0` release, checks that the latest release is still the pinned tag, patches weighted preflop range parsing, adds a headless `shark_worker` target, and builds it with MSYS2/MinGW:
 
 ```powershell
-cd C:\Users\tanay\Documents\Playground\poker-practice-tool
 powershell -ExecutionPolicy Bypass -File .\tools\setup_shark_worker.ps1 -InstallMsys2
 ```
 
@@ -84,7 +92,7 @@ powershell -ExecutionPolicy Bypass -File .\tools\setup_shark_worker.ps1 -NoBuild
 ## Run Frontend
 
 ```powershell
-cd C:\Users\tanay\Documents\Playground\poker-practice-tool\frontend
+cd frontend
 npm install
 npm run dev
 ```
@@ -139,14 +147,14 @@ Integrated `/play` hands use the five bundled 100bb HU JSON ranges directly. Wei
 Backend:
 
 ```powershell
-cd C:\Users\tanay\Documents\Playground\poker-practice-tool\backend
+cd backend
 python -m pytest
 ```
 
 Frontend:
 
 ```powershell
-cd C:\Users\tanay\Documents\Playground\poker-practice-tool\frontend
+cd frontend
 npm run test:poker
 npm run test:preflop
 npm run test:cards
