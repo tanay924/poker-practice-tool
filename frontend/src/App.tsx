@@ -10,9 +10,12 @@ export default function App() {
   return (
     <div className="app-shell">
       <header className="topbar">
-        <div>
-          <p className="eyebrow">Offline study</p>
-          <h1>Local Poker Trainer</h1>
+        <div className="brand-lockup">
+          <span className="brand-mark" aria-hidden="true">HU</span>
+          <div>
+            <p className="eyebrow">Offline study</p>
+            <h1>Local Poker Trainer</h1>
+          </div>
         </div>
         <nav className="nav-links" aria-label="Primary">
           <NavLink to="/play">Play</NavLink>

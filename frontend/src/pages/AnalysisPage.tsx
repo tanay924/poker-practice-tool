@@ -64,7 +64,9 @@ export default function AnalysisPage() {
                 <td><span className={`status-pill ${item.status}`}>{item.status}</span></td>
                 <td>
                   {item.status === "ready" || item.status === "failed" || item.status === "unsupported" ? (
-                    <Link to={`/analysis/${item.hand_id}`}>{item.status === "ready" ? "Answer sheet" : "Details"}</Link>
+                    <Link className="button-link compact-button" to={`/analysis/${item.hand_id}`}>
+                      {item.status === "ready" ? "Answer sheet" : "Details"}
+                    </Link>
                   ) : (
                     <span className="muted-text">Waiting</span>
                   )}

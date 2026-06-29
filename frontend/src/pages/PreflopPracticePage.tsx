@@ -92,7 +92,7 @@ export default function PreflopPracticePage() {
 
         <div className="action-buttons">
           {legalActions.map((action) => (
-            <button key={action} type="button" onClick={() => chooseAction(action)}>
+            <button className={preflopActionButtonClass(action)} key={action} type="button" onClick={() => chooseAction(action)}>
               {actionLabel(action)}
             </button>
           ))}
@@ -214,4 +214,17 @@ function HistoryItem({ entry, isComplete }: { entry: PreflopHistoryEntry; isComp
 
 function villainPosition(heroPosition: Position): Position {
   return heroPosition === "SB" ? "BB" : "SB";
+}
+
+function preflopActionButtonClass(action: PreflopAction) {
+  if (action === "fold") {
+    return "action-danger";
+  }
+  if (action === "check" || action === "call" || action === "limp") {
+    return "action-passive";
+  }
+  if (action === "allin") {
+    return "action-study";
+  }
+  return "";
 }
