@@ -4,15 +4,6 @@ A local-only heads-up NLHE trainer for offline study.
 
 The MVP lets you drill bundled 100bb HU preflop ranges, play simplified 100bb SB-vs-BB hands from preflop through postflop, save completed hands, submit background Shark analysis jobs, keep playing while jobs run, and review answer sheets later.
 
-## Safety Boundary
-
-This app is only for offline study:
-
-- It does not connect to poker clients.
-- It does not provide real-time assistance for live or online games.
-- It does not scrape solver sites.
-- Preflop ranges are imported from user-provided files.
-
 ## Stack
 
 - Frontend: React, Vite, TypeScript
