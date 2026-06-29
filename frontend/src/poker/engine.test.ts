@@ -338,6 +338,7 @@ const baseState: TrainerState = {
 
   assert.equal(folded.handOver, true);
   assert.equal(folded.result?.reason, "hero_folded_preflop");
+  assert.equal(folded.message, "Opponent wins. Hero folded preflop.");
   assert.deepEqual(folded.visibleBoard, []);
 }
 

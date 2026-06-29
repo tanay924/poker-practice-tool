@@ -545,6 +545,7 @@ main {
 .control-panel,
 .panel,
 .result-box,
+.payout-card,
 .feedback-box,
 .summary-grid > div,
 .mistake-box,
@@ -793,6 +794,90 @@ button.compact-button,
 .result-box {
   display: grid;
   gap: 12px;
+}
+
+.payout-card {
+  display: grid;
+  gap: 14px;
+  padding: 16px;
+}
+
+.payout-heading {
+  display: grid;
+  gap: 6px;
+}
+
+.payout-heading h3 {
+  color: var(--text);
+  font-size: 1.08rem;
+  margin: 0;
+}
+
+.payout-heading p {
+  color: var(--text-soft);
+  margin: 0;
+}
+
+.payout-flow {
+  align-items: stretch;
+  display: grid;
+  gap: 10px;
+  grid-template-columns: minmax(0, 1fr) minmax(82px, 0.7fr) minmax(0, 1fr);
+}
+
+.payout-stack,
+.payout-pot-chip {
+  align-content: center;
+  background: rgba(255, 255, 255, 0.045);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  display: grid;
+  gap: 5px;
+  min-height: 82px;
+  padding: 12px;
+  text-align: center;
+}
+
+.payout-stack span,
+.payout-pot-chip span,
+.payout-pot-chip small {
+  color: var(--muted-strong);
+  font-size: 0.78rem;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.payout-stack strong,
+.payout-pot-chip strong {
+  color: var(--text);
+  font-size: 1.02rem;
+  line-height: 1.15;
+}
+
+.payout-stack strong small {
+  color: var(--muted);
+  font-size: 0.76rem;
+  font-weight: 800;
+}
+
+.payout-stack.winner {
+  background:
+    linear-gradient(180deg, rgba(53, 196, 127, 0.18), rgba(53, 196, 127, 0.07));
+  border-color: rgba(53, 196, 127, 0.46);
+}
+
+.payout-pot-chip {
+  background:
+    radial-gradient(circle at 50% 18%, rgba(240, 201, 106, 0.28), rgba(216, 166, 66, 0.08) 62%, rgba(255, 255, 255, 0.04) 100%);
+  border-color: rgba(240, 201, 106, 0.35);
+}
+
+.payout-pot-chip.hero {
+  box-shadow: -10px 0 24px rgba(53, 196, 127, 0.12);
+}
+
+.payout-pot-chip.opponent {
+  box-shadow: 10px 0 24px rgba(53, 196, 127, 0.12);
 }
 
 .feedback-box {
@@ -1282,6 +1367,7 @@ td {
   }
 
   .metric-strip,
+  .payout-flow,
   .preflop-deal-row {
     grid-template-columns: 1fr;
   }

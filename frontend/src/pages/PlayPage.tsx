@@ -3,8 +3,10 @@ import { Link } from "react-router-dom";
 
 import { analyzeHand, getAnalysis, saveHand } from "../api";
 import PlayingCard from "../components/PlayingCard";
+import SettlementSummaryPanel from "../components/SettlementSummaryPanel";
 import type { AnalysisJob, HandRead } from "../types";
 import { applyHeroAction, formatActionEntry, legalHeroActions, startNewHand, toHandPayload, type SeatMode, type TrainerAction } from "../poker/engine";
+import { settlementForTrainerState } from "../poker/settlement";
 import { shouldRevealOpponentCards } from "../poker/visibility";
 import { analysisControlFor } from "./playAnalysisControl";
 
@@ -23,6 +25,7 @@ export default function PlayPage() {
 
   const legalActions = useMemo(() => legalHeroActions(hand), [hand]);
   const analysisControl = analysisControlFor(savedHand, analysisJob);
+  const settlement = useMemo(() => settlementForTrainerState(hand), [hand]);
   const revealVillainCards = shouldRevealOpponentCards(hand.result);
   const hiddenBoardSlots = hand.handOver ? 0 : 5 - hand.visibleBoard.length;
 
@@ -165,6 +168,8 @@ export default function PlayPage() {
             </button>
           )}
         </div>
+
+        {settlement && <SettlementSummaryPanel settlement={settlement} />}
 
         {hand.handOver && (
           <div className="result-box">

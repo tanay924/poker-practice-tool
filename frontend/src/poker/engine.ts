@@ -657,8 +657,35 @@ function finishHand(state: TrainerState, winner: string, reason: string): Traine
     facingBetAmount: 0,
     currentPreflopDecision: null,
     result: { winner, reason },
-    message: winner === "showdown" ? "River action closed. Hand saved for review." : `${winner.toUpperCase()} wins by ${reason.replace(/_/g, " ")}.`
+    message: handCompleteMessage(winner, reason)
   };
+}
+
+function handCompleteMessage(winner: string, reason: string): string {
+  if (winner === "showdown") {
+    return "Showdown reached. Hand saved for review.";
+  }
+
+  const winnerLabel = winner === "hero" ? "Hero" : "Opponent";
+  return `${winnerLabel} wins. ${friendlyResultReason(winner, reason)}`;
+}
+
+function friendlyResultReason(winner: string, reason: string): string {
+  const heroWins = winner === "hero";
+  if (reason.includes("folded")) {
+    const stage = reason.includes("preflop") ? " preflop" : "";
+    return heroWins ? `Opponent folded${stage}.` : `Hero folded${stage}.`;
+  }
+  if (reason.includes("allin")) {
+    return "The all-in preflop branch ended the hand.";
+  }
+  if (reason.includes("4bet") || reason.includes("reraised")) {
+    return "The available preflop tree ended here.";
+  }
+  if (reason.includes("tree_closed")) {
+    return "The supported line ended here.";
+  }
+  return "The pot was awarded.";
 }
 
 function addHeroAction(state: TrainerState, action: TrainerAction): TrainerState {

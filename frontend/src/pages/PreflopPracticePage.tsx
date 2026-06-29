@@ -1,6 +1,7 @@
 import { useMemo, useState } from "react";
 
 import PlayingCard from "../components/PlayingCard";
+import SettlementSummaryPanel from "../components/SettlementSummaryPanel";
 import {
   actionLabel,
   answerCurrentDecision,
@@ -13,6 +14,7 @@ import {
   type PreflopRoundState
 } from "../preflop/engine";
 import { listBundledPreflopRanges } from "../preflop/rangeData";
+import { settlementForPreflopRound } from "../preflop/settlement";
 
 interface SessionStats {
   correctDecisions: number;
@@ -25,6 +27,7 @@ export default function PreflopPracticePage() {
   const [stats, setStats] = useState<SessionStats>({ correctDecisions: 0, hands: 0, totalDecisions: 0 });
   const ranges = useMemo(() => listBundledPreflopRanges(), []);
   const legalActions = round.currentDecision ? legalActionsForSpot(round.currentDecision.spotId) : [];
+  const settlement = useMemo(() => settlementForPreflopRound(round), [round]);
   const accuracy = stats.totalDecisions === 0 ? 0 : Math.round((stats.correctDecisions / stats.totalDecisions) * 100);
 
   const recordRoundIfComplete = (nextRound: PreflopRoundState, previousRound: PreflopRoundState) => {
@@ -111,6 +114,8 @@ export default function PreflopPracticePage() {
             Deal BB
           </button>
         </div>
+
+        {settlement && <SettlementSummaryPanel settlement={settlement} />}
 
         {round.lastFeedback && (
           <section className={`feedback-box ${round.lastFeedback.correct ? "correct" : "wrong"}`}>
