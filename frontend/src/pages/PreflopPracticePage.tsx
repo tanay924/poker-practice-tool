@@ -1,5 +1,6 @@
 import { useMemo, useState } from "react";
 
+import PlayingCard from "../components/PlayingCard";
 import {
   actionLabel,
   answerCurrentDecision,
@@ -17,12 +18,6 @@ interface SessionStats {
   correctDecisions: number;
   hands: number;
   totalDecisions: number;
-}
-
-function Card({ value, muted = false }: { value: string; muted?: boolean }) {
-  const suit = value.slice(-1);
-  const isRed = suit === "h" || suit === "d";
-  return <span className={`card ${isRed ? "red" : ""} ${muted ? "muted" : ""}`}>{value}</span>;
 }
 
 export default function PreflopPracticePage() {
@@ -167,11 +162,11 @@ function Seat({
       <span className="seat-label">{label}</span>
       <div className="cards">
         {cards ? (
-          cards.map((card) => <Card key={card} value={card} />)
+          cards.map((card) => <PlayingCard key={card} value={card} />)
         ) : (
           <>
-            <Card value="??" muted={muted} />
-            <Card value="??" muted={muted} />
+            <PlayingCard value="??" muted={muted} />
+            <PlayingCard value="??" muted={muted} />
           </>
         )}
       </div>

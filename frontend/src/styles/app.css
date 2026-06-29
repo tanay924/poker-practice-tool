@@ -93,7 +93,7 @@ main {
 }
 
 .play-grid {
-  grid-template-columns: minmax(0, 1.2fr) minmax(320px, 0.8fr);
+  grid-template-columns: minmax(600px, 1.35fr) minmax(320px, 0.65fr);
 }
 
 .preflop-grid {
@@ -108,7 +108,7 @@ main {
 
 .table-surface {
   align-items: center;
-  aspect-ratio: 1.45;
+  aspect-ratio: 1.55;
   background:
     radial-gradient(circle at center, rgba(255, 255, 255, 0.12), transparent 42%),
     linear-gradient(145deg, #197153, #11543e);
@@ -119,8 +119,8 @@ main {
   display: grid;
   grid-template-rows: 1fr auto auto 1fr;
   justify-items: center;
-  min-height: 520px;
-  padding: clamp(18px, 4vw, 42px);
+  min-height: 590px;
+  padding: clamp(22px, 4.5vw, 54px);
 }
 
 .preflop-table {
@@ -160,33 +160,86 @@ main {
 .cards,
 .board-row {
   display: flex;
-  gap: 8px;
+  gap: clamp(8px, 1.5vw, 14px);
   flex-wrap: wrap;
   justify-content: center;
 }
 
-.card {
-  align-items: center;
+.playing-card {
+  aspect-ratio: 0.7;
   background: #ffffff;
-  border: 1px solid #d8ded9;
-  border-radius: 8px;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.16);
-  color: #1e2b24;
-  display: inline-flex;
-  font-weight: 900;
-  height: 58px;
-  justify-content: center;
-  min-width: 42px;
-  padding: 0 8px;
+  border: 1px solid #d7ded8;
+  border-radius: 7px;
+  box-shadow:
+    0 10px 18px rgba(4, 12, 8, 0.22),
+    inset 0 0 0 2px rgba(255, 255, 255, 0.7);
+  color: #1d2520;
+  display: inline-grid;
+  flex: 0 0 auto;
+  font-family: Georgia, "Times New Roman", serif;
+  height: clamp(82px, 10vw, 116px);
+  overflow: hidden;
+  place-items: center;
+  position: relative;
 }
 
-.card.red {
+.playing-card.red {
   color: #b12d36;
 }
 
-.card.muted {
-  background: #e7ece8;
-  color: #87928c;
+.playing-card.muted {
+  background: #e9eee9;
+  color: #7c8981;
+}
+
+.playing-card.placeholder {
+  background:
+    linear-gradient(135deg, rgba(255, 255, 255, 0.16) 25%, transparent 25%) 0 0 / 12px 12px,
+    linear-gradient(225deg, rgba(255, 255, 255, 0.12) 25%, transparent 25%) 0 0 / 12px 12px,
+    #2d4137;
+  border-color: rgba(255, 255, 255, 0.28);
+  color: rgba(255, 255, 255, 0.72);
+}
+
+.card-corner {
+  align-items: center;
+  display: flex;
+  flex-direction: column;
+  font-size: clamp(0.78rem, 1.25vw, 1rem);
+  font-weight: 900;
+  gap: 0;
+  line-height: 0.9;
+  position: absolute;
+}
+
+.card-corner strong {
+  font-family: Inter, ui-sans-serif, system-ui, sans-serif;
+  line-height: 1;
+}
+
+.card-corner.top {
+  left: 7px;
+  top: 7px;
+}
+
+.card-corner.bottom {
+  bottom: 7px;
+  right: 7px;
+  transform: rotate(180deg);
+}
+
+.card-center-suit {
+  font-size: clamp(2.1rem, 5vw, 3.7rem);
+  line-height: 1;
+  transform: translateY(2px);
+}
+
+.playing-card.placeholder .card-corner {
+  display: none;
+}
+
+.playing-card.placeholder .card-center-suit {
+  font-size: clamp(1.5rem, 3vw, 2.4rem);
 }
 
 .pot-display {
