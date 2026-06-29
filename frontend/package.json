@@ -8,6 +8,7 @@
     "build": "tsc -b && vite build",
     "preview": "vite preview",
     "test:cards": "tsx src/components/PlayingCard.test.ts",
+    "test:play-page": "tsx src/pages/PlayPage.test.ts",
     "test:poker": "tsx src/poker/engine.test.ts",
     "test:preflop": "tsx src/preflop/engine.test.ts && tsx src/preflop/rangeMatrix.test.ts"
   },
