@@ -1,9 +1,11 @@
 import { useEffect, useMemo, useState } from "react";
+import { Link } from "react-router-dom";
 
 import { analyzeHand, getAnalysis, saveHand } from "../api";
 import PlayingCard from "../components/PlayingCard";
 import type { AnalysisJob, HandRead } from "../types";
 import { applyHeroAction, formatActionEntry, legalHeroActions, startNewHand, toHandPayload, type TrainerAction } from "../poker/engine";
+import { analysisControlFor } from "./playAnalysisControl";
 
 export default function PlayPage() {
   const [hand, setHand] = useState(() => startNewHand());
@@ -14,6 +16,7 @@ export default function PlayPage() {
   const [error, setError] = useState<string | null>(null);
 
   const legalActions = useMemo(() => legalHeroActions(hand), [hand]);
+  const analysisControl = analysisControlFor(savedHand, analysisJob);
 
   useEffect(() => {
     if (!hand.handOver || saveAttempted) {
@@ -132,10 +135,16 @@ export default function PlayPage() {
           <div className="result-box">
             <h2>Hand complete</h2>
             <p>{saving ? "Saving hand..." : savedHand ? `Saved as hand #${savedHand.id}` : "Waiting to save."}</p>
-            {savedHand && (
-              <button type="button" onClick={requestAnalysis} disabled={analysisJob?.status === "queued" || analysisJob?.status === "solving"}>
-                Analyze hand
-              </button>
+            {analysisControl && (
+              analysisControl.mode === "view" && analysisControl.href ? (
+                <Link className="button-link" to={analysisControl.href}>
+                  {analysisControl.label}
+                </Link>
+              ) : (
+                <button type="button" onClick={requestAnalysis} disabled={analysisControl.disabled}>
+                  {analysisControl.label}
+                </button>
+              )
             )}
             {analysisJob && <p className={`status-text ${analysisJob.status}`}>Analysis status: {analysisJob.status}</p>}
           </div>
