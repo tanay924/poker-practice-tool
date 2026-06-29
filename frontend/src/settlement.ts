@@ -1,5 +1,5 @@
 export type SettlementWinner = "hero" | "opponent" | null;
-export type SettlementStatus = "awarded" | "showdown";
+export type SettlementStatus = "awarded" | "showdown" | "split";
 
 export interface SettlementSummary {
   detail: string;
@@ -20,4 +20,3 @@ export function formatBb(value: number): string {
 export function roundBb(value: number): number {
   return Math.round(value * 10) / 10;
 }
-

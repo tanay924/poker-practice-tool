@@ -9,6 +9,7 @@ import {
   type Rng
 } from "../preflop/engine";
 import { getRangeForSpot, legalActionsBySpot, PREFLOP_SPOTS, type PreflopSpotId } from "../preflop/rangeData";
+import { evaluateHoldemShowdown } from "./handEvaluator";
 
 export type Street = "preflop" | "flop" | "turn" | "river";
 export type CanonicalAction = "check" | "bet" | "call" | "fold" | "raise_to" | "raise" | "limp" | "allin";
@@ -620,7 +621,17 @@ function advanceAfterClosedAction(state: TrainerState): TrainerState {
   if (state.street === "turn") {
     return enterStreet(state, "river");
   }
-  return finishHand(state, "showdown", "river_completed");
+  return finishShowdown(state);
+}
+
+function finishShowdown(state: TrainerState): TrainerState {
+  const showdown = evaluateHoldemShowdown(state.heroCards, state.villainCards, state.board);
+  return finishHand(state, showdown.winner === "villain" ? "villain" : showdown.winner, "river_completed", {
+    hero_hand: showdown.heroHand,
+    showdown: true,
+    villain_hand: showdown.villainHand,
+    winning_hand: showdown.winningHand
+  });
 }
 
 function villainCanLeadStreet(state: TrainerState, street: Street): boolean {
@@ -648,7 +659,7 @@ function lastAggressor(actionHistory: ActionEntry[], street: Street): ActionEntr
   return aggressor;
 }
 
-function finishHand(state: TrainerState, winner: string, reason: string): TrainerState {
+function finishHand(state: TrainerState, winner: string, reason: string, resultDetails: Record<string, unknown> = {}): TrainerState {
   return {
     ...state,
     handOver: true,
@@ -656,12 +667,19 @@ function finishHand(state: TrainerState, winner: string, reason: string): Traine
     facingBet: false,
     facingBetAmount: 0,
     currentPreflopDecision: null,
-    result: { winner, reason },
+    result: { winner, reason, ...resultDetails },
     message: handCompleteMessage(winner, reason)
   };
 }
 
 function handCompleteMessage(winner: string, reason: string): string {
+  if (winner === "split") {
+    return reason === "river_completed" ? "Pot split at showdown." : "Pot split.";
+  }
+  if (reason === "river_completed") {
+    const winnerLabel = winner === "hero" ? "Hero" : "Opponent";
+    return `${winnerLabel} wins at showdown.`;
+  }
   if (winner === "showdown") {
     return "Showdown reached. Hand saved for review.";
   }

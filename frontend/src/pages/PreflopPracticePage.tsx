@@ -15,6 +15,7 @@ import {
 } from "../preflop/engine";
 import { listBundledPreflopRanges } from "../preflop/rangeData";
 import { settlementForPreflopRound } from "../preflop/settlement";
+import { formatBb } from "../settlement";
 
 interface SessionStats {
   correctDecisions: number;
@@ -29,6 +30,8 @@ export default function PreflopPracticePage() {
   const legalActions = round.currentDecision ? legalActionsForSpot(round.currentDecision.spotId) : [];
   const settlement = useMemo(() => settlementForPreflopRound(round), [round]);
   const accuracy = stats.totalDecisions === 0 ? 0 : Math.round((stats.correctDecisions / stats.totalDecisions) * 100);
+  const heroStack = settlement ? formatBb(settlement.heroAfterBb) : "100bb";
+  const villainStack = settlement ? formatBb(settlement.opponentAfterBb) : "100bb";
 
   const recordRoundIfComplete = (nextRound: PreflopRoundState, previousRound: PreflopRoundState) => {
     if (!nextRound.isComplete || previousRound.isComplete) {
@@ -66,7 +69,8 @@ export default function PreflopPracticePage() {
             cards={round.isComplete ? round.villainCards : null}
             label={villainPosition(round.heroPosition)}
             muted={!round.isComplete}
-            stack="100bb"
+            stack={villainStack}
+            stackPlacement="above"
           />
 
           <div className="preflop-center">
@@ -74,7 +78,7 @@ export default function PreflopPracticePage() {
             <strong>{round.message}</strong>
           </div>
 
-          <Seat cards={round.heroCards} label={`Hero ${round.heroPosition}`} stack="100bb" />
+          <Seat cards={round.heroCards} label={`Hero ${round.heroPosition}`} stack={heroStack} />
         </div>
       </div>
 
@@ -155,16 +159,20 @@ function Seat({
   cards,
   label,
   muted = false,
-  stack
+  stack,
+  stackPlacement = "below"
 }: {
   cards: [string, string] | null;
   label: string;
   muted?: boolean;
   stack: string;
+  stackPlacement?: "above" | "below";
 }) {
   return (
     <div className="seat">
+      {stackPlacement === "above" && <span className="seat-stack">{stack}</span>}
       <span className="seat-label">{label}</span>
+      {stackPlacement !== "above" && <span className="seat-stack">{stack}</span>}
       <div className="cards">
         {cards ? (
           cards.map((card) => <PlayingCard key={card} value={card} />)
@@ -175,7 +183,6 @@ function Seat({
           </>
         )}
       </div>
-      <span>{stack}</span>
     </div>
   );
 }

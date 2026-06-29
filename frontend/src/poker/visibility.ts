@@ -17,5 +17,5 @@ export function visibleBoardForHistory(board: string[], actionHistory: StreetMar
 }
 
 export function shouldRevealOpponentCards(result: Record<string, unknown> | null | undefined): boolean {
-  return result?.winner === "showdown" && result.reason === "river_completed";
+  return result?.reason === "river_completed";
 }

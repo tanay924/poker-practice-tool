@@ -342,4 +342,52 @@ const baseState: TrainerState = {
   assert.deepEqual(folded.visibleBoard, []);
 }
 
+{
+  const riverState: TrainerState = {
+    ...baseState,
+    heroCards: ["As", "Ad"],
+    villainCards: ["Kc", "Qd"],
+    board: ["Ah", "7d", "2c", "4h", "9s"],
+    visibleBoard: ["Ah", "7d", "2c", "4h", "9s"],
+    street: "river",
+    pot: 10,
+    heroStack: 95,
+    villainStack: 95,
+    message: "Your river decision."
+  };
+  const completed = choose(riverState, "check");
+
+  assert.equal(completed.handOver, true);
+  assert.deepEqual(completed.result, {
+    hero_hand: "Three of a kind, aces",
+    reason: "river_completed",
+    showdown: true,
+    villain_hand: "High card, ace",
+    winner: "hero",
+    winning_hand: "Three of a kind, aces"
+  });
+  assert.equal(completed.message, "Hero wins at showdown.");
+}
+
+{
+  const riverState: TrainerState = {
+    ...baseState,
+    heroCards: ["As", "Kd"],
+    villainCards: ["Ac", "Kh"],
+    board: ["2s", "3d", "4c", "5h", "9s"],
+    visibleBoard: ["2s", "3d", "4c", "5h", "9s"],
+    street: "river",
+    pot: 10,
+    heroStack: 95,
+    villainStack: 95,
+    message: "Your river decision."
+  };
+  const completed = choose(riverState, "check");
+
+  assert.equal(completed.handOver, true);
+  assert.equal(completed.result?.winner, "split");
+  assert.equal(completed.result?.winning_hand, "Straight, five-high");
+  assert.equal(completed.message, "Pot split at showdown.");
+}
+
 console.log("poker engine tests passed");

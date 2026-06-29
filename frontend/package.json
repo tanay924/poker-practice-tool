@@ -10,7 +10,7 @@
     "test:analysis-detail": "tsx src/pages/AnalysisDetailPage.test.ts",
     "test:cards": "tsx src/components/PlayingCard.test.ts",
     "test:play-page": "tsx src/pages/PlayPage.test.ts",
-    "test:poker": "tsx src/poker/engine.test.ts",
+    "test:poker": "tsx src/poker/handEvaluator.test.ts && tsx src/poker/engine.test.ts",
     "test:preflop": "tsx src/preflop/engine.test.ts && tsx src/preflop/rangeMatrix.test.ts",
     "test:settlement": "tsx src/poker/settlement.test.ts && tsx src/preflop/settlement.test.ts"
   },

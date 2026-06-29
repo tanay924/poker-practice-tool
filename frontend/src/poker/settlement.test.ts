@@ -66,14 +66,28 @@ const completedHand: TrainerState = {
   const settlement = settlementForTrainerState({
     ...completedHand,
     pot: 18,
-    result: { winner: "showdown", reason: "river_completed" }
+    heroStack: 91,
+    villainStack: 91,
+    result: { winner: "split", reason: "river_completed", winning_hand: "Straight, five-high" }
   });
 
   assert.ok(settlement);
-  assert.equal(settlement.status, "showdown");
+  assert.equal(settlement.status, "split");
   assert.equal(settlement.winner, null);
-  assert.equal(settlement.headline, "Showdown reached");
-  assert.equal(settlement.detail, "Winner evaluation is not available yet.");
-  assert.equal(settlement.heroAfterBb, 87.5);
-  assert.equal(settlement.opponentAfterBb, 91.5);
+  assert.equal(settlement.headline, "Pot split");
+  assert.equal(settlement.detail, "Both players chopped with Straight, five-high.");
+  assert.equal(settlement.heroAfterBb, 100);
+  assert.equal(settlement.opponentAfterBb, 100);
+}
+
+{
+  const settlement = settlementForTrainerState({
+    ...completedHand,
+    result: { winner: "hero", reason: "river_completed", winning_hand: "Three of a kind, aces" }
+  });
+
+  assert.ok(settlement);
+  assert.equal(settlement.status, "awarded");
+  assert.equal(settlement.headline, "Hero wins");
+  assert.equal(settlement.detail, "Won at showdown with Three of a kind, aces.");
 }

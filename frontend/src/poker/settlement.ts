@@ -26,13 +26,28 @@ export function settlementForTrainerState(state: TrainerState): SettlementSummar
     };
   }
 
+  if (winner === "split") {
+    const halfPot = roundBb(potBb / 2);
+    return {
+      detail: splitDetail(state.result),
+      headline: "Pot split",
+      heroAfterBb: roundBb(heroBeforeBb + halfPot),
+      heroBeforeBb,
+      opponentAfterBb: roundBb(opponentBeforeBb + halfPot),
+      opponentBeforeBb,
+      potBb,
+      status: "split",
+      winner: null
+    };
+  }
+
   if (winner !== "hero" && winner !== "villain") {
     return null;
   }
 
   const heroWins = winner === "hero";
   return {
-    detail: detailForResult(reason, heroWins),
+    detail: detailForResult(reason, heroWins, state.result),
     headline: heroWins ? "Hero wins" : "Opponent wins",
     heroAfterBb: heroWins ? roundBb(heroBeforeBb + potBb) : heroBeforeBb,
     heroBeforeBb,
@@ -44,7 +59,11 @@ export function settlementForTrainerState(state: TrainerState): SettlementSummar
   };
 }
 
-function detailForResult(reason: string, heroWins: boolean): string {
+function detailForResult(reason: string, heroWins: boolean, result: Record<string, unknown>): string {
+  if (reason === "river_completed") {
+    const winningHand = typeof result.winning_hand === "string" ? result.winning_hand : "";
+    return winningHand ? `Won at showdown with ${winningHand}.` : "Won at showdown.";
+  }
   if (reason.includes("folded")) {
     const stage = reason.includes("preflop") ? " preflop" : "";
     return heroWins ? `Opponent folded${stage}.` : `Hero folded${stage}.`;
@@ -59,4 +78,9 @@ function detailForResult(reason: string, heroWins: boolean): string {
     return "The supported line ended here.";
   }
   return heroWins ? "The pot was awarded to Hero." : "The pot was awarded to Opponent.";
+}
+
+function splitDetail(result: Record<string, unknown>): string {
+  const winningHand = typeof result.winning_hand === "string" ? result.winning_hand : "";
+  return winningHand ? `Both players chopped with ${winningHand}.` : "Both players chopped at showdown.";
 }

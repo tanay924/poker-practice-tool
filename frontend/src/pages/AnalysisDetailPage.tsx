@@ -6,6 +6,7 @@ import PlayingCard from "../components/PlayingCard";
 import { formatActionEntry } from "../poker/engine";
 import { shouldRevealOpponentCards as shouldRevealOpponentCardsForResult, visibleBoardForHistory } from "../poker/visibility";
 import type { AnalysisDetail } from "../types";
+import { formatResultText } from "./analysisResultText";
 
 export default function AnalysisDetailPage() {
   const { handId } = useParams();
@@ -224,54 +225,4 @@ function splitCardString(cards: string) {
 
 function formatBb(value: number) {
   return `${Number.isInteger(value) ? value.toFixed(0) : value.toFixed(1)}bb`;
-}
-
-function formatResultText(result: Record<string, unknown>) {
-  const winner = typeof result.winner === "string" ? result.winner : "unknown";
-  const reason = typeof result.reason === "string" ? result.reason : "";
-
-  if (winner === "hero") {
-    return `Hero won${formatWinningReason(reason, "opponent")}.`;
-  }
-  if (winner === "villain") {
-    return `Opponent won${formatWinningReason(reason, "hero")}.`;
-  }
-  if (winner === "showdown") {
-    return "The hand reached showdown after the river action closed.";
-  }
-  return "The hand is complete.";
-}
-
-function formatWinningReason(reason: string, foldedPlayer: "hero" | "opponent") {
-  const foldReasons = new Set([
-    "hero_folded",
-    "hero_folded_preflop",
-    "hero_folded_to_3bet",
-    "hero_folded_to_limp_raise",
-    "villain_folded",
-    "villain_folded_preflop",
-    "villain_folded_to_3bet",
-    "villain_folded_to_limp_raise"
-  ]);
-  if (foldReasons.has(reason)) {
-    return ` when ${foldedPlayer} folded`;
-  }
-
-  const allInReasons = new Set(["bb_allin_preflop", "hero_allin_preflop"]);
-  if (allInReasons.has(reason)) {
-    return " when the preflop line reached an all-in branch";
-  }
-
-  const treeClosedReasons = new Set([
-    "preflop_tree_closed",
-    "hero_4bet_preflop",
-    "hero_limp_reraised_preflop",
-    "villain_4bet_preflop",
-    "villain_limp_reraised_preflop"
-  ]);
-  if (treeClosedReasons.has(reason)) {
-    return " when the supported preflop tree ended";
-  }
-
-  return "";
 }
