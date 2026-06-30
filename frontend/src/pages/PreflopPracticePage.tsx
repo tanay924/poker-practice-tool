@@ -21,6 +21,7 @@ import {
   type PreflopPracticeMode,
   type PreflopPracticeSettings
 } from "../preflop/practiceModes";
+import { historyEntryDisplay } from "../preflop/historyDisplay";
 import { listBundledPreflopRanges } from "../preflop/rangeData";
 import { settlementForPreflopRound } from "../preflop/settlement";
 import { formatBb } from "../settlement";
@@ -293,13 +294,13 @@ function OptionBars({ options, selectedAction }: { options: ActionOption[]; sele
 }
 
 function HistoryItem({ entry, isComplete }: { entry: PreflopHistoryEntry; isComplete: boolean }) {
-  const handLabel = entry.automatic && !isComplete ? "--" : entry.handKey;
+  const { handLabel, probabilityLabel } = historyEntryDisplay(entry, isComplete);
   return (
     <li>
       <span>{entry.actor}</span>
       <strong>{actionLabel(entry.action)}</strong>
       <em>{handLabel}</em>
-      <small>{Math.round(entry.probability * 100)}%</small>
+      <small>{probabilityLabel}</small>
     </li>
   );
 }
