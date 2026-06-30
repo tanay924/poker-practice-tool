@@ -63,6 +63,33 @@ export interface SolverStreetResult {
   best_action: string;
   verdict: string;
   confidence: string;
+  details?: DecisionDetails;
+}
+
+export interface PotOddsDetails {
+  available: boolean;
+  reason?: string;
+  call_amount_bb?: number;
+  pot_before_call_bb?: number;
+  pot_if_call_bb?: number;
+  required_equity?: number;
+}
+
+export interface EquityDetails {
+  available: boolean;
+  source: string;
+  hero: number | null;
+  villain: number | null;
+  note?: string;
+  hero_wins?: number;
+  villain_wins?: number;
+  ties?: number;
+  total_runouts?: number;
+}
+
+export interface DecisionDetails {
+  pot_odds?: PotOddsDetails;
+  equity?: EquityDetails;
 }
 
 export interface PreflopResult {

@@ -1165,6 +1165,62 @@ td {
   height: 100%;
 }
 
+.decision-detail-panel {
+  border-top: 1px solid var(--line);
+  margin-top: 14px;
+  padding-top: 12px;
+}
+
+.decision-detail-panel summary {
+  color: var(--amber-soft);
+  cursor: pointer;
+  font-size: 0.84rem;
+  font-weight: 900;
+}
+
+.decision-detail-grid {
+  display: grid;
+  gap: 10px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  margin-top: 12px;
+}
+
+.detail-card {
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: 12px;
+}
+
+.detail-card strong {
+  color: var(--text);
+  display: block;
+  font-size: 1rem;
+  margin-bottom: 5px;
+}
+
+.detail-card p {
+  margin: 4px 0 0;
+}
+
+.equity-split-bar {
+  background: rgba(239, 100, 109, 0.2);
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  display: flex;
+  height: 11px;
+  margin: 10px 0;
+  overflow: hidden;
+}
+
+.equity-split-bar span:first-child {
+  background: linear-gradient(90deg, var(--green-dark), var(--green));
+}
+
+.equity-split-bar span:last-child {
+  background: linear-gradient(90deg, var(--red), var(--red-dark));
+}
+
 .preflop-option.selected {
   background: rgba(216, 166, 66, 0.1);
   border: 1px solid rgba(216, 166, 66, 0.26);
@@ -1456,6 +1512,10 @@ td {
   }
 
   .strategy-row {
+    grid-template-columns: 1fr;
+  }
+
+  .decision-detail-grid {
     grid-template-columns: 1fr;
   }
 

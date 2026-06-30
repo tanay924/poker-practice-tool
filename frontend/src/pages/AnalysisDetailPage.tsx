@@ -5,7 +5,8 @@ import { getAnalysis } from "../api";
 import PlayingCard from "../components/PlayingCard";
 import { formatActionEntry } from "../poker/engine";
 import { shouldRevealOpponentCards as shouldRevealOpponentCardsForResult, visibleBoardForHistory } from "../poker/visibility";
-import type { AnalysisDetail } from "../types";
+import type { AnalysisDetail, DecisionDetails, EquityDetails, PotOddsDetails } from "../types";
+import { decisionDetailsAvailable, formatDetailBb, formatDetailPercent } from "./analysisDecisionDetails";
 import { formatResultText } from "./analysisResultText";
 
 export default function AnalysisDetailPage() {
@@ -169,7 +170,7 @@ export default function AnalysisDetailPage() {
               <div>
                 <span className="status-pill">{result.street}</span>
                 <h4>{result.node}</h4>
-                <p>{result.board.join(" ")} · Hero {result.hero_hand}</p>
+                <p>{result.board.join(" ")} / Hero {result.hero_hand}</p>
               </div>
               <div className="strategy-bars">
                 {Object.entries(result.solver_strategy).map(([action, frequency]) => (
@@ -184,6 +185,7 @@ export default function AnalysisDetailPage() {
                 Hero chose <strong>{result.hero_action}</strong>. Best action: <strong>{result.best_action}</strong>. Verdict:{" "}
                 <strong>{result.verdict}</strong> ({result.confidence} confidence).
               </p>
+              <DecisionDetailsPanel details={result.details} />
             </article>
           ))}
         </div>
@@ -225,4 +227,68 @@ function splitCardString(cards: string) {
 
 function formatBb(value: number) {
   return `${Number.isInteger(value) ? value.toFixed(0) : value.toFixed(1)}bb`;
+}
+
+function DecisionDetailsPanel({ details }: { details?: DecisionDetails }) {
+  if (!decisionDetailsAvailable(details)) {
+    return null;
+  }
+
+  return (
+    <details className="decision-detail-panel">
+      <summary>Pot odds and equity</summary>
+      <div className="decision-detail-grid">
+        <PotOddsCard potOdds={details?.pot_odds} />
+        <EquityCard equity={details?.equity} />
+      </div>
+    </details>
+  );
+}
+
+function PotOddsCard({ potOdds }: { potOdds?: PotOddsDetails }) {
+  if (!potOdds?.available) {
+    return (
+      <div className="detail-card">
+        <span className="label">Pot odds</span>
+        <strong>Not facing a call</strong>
+        <p>Pot odds appear when Hero calls or folds to a bet.</p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="detail-card">
+      <span className="label">Pot odds</span>
+      <strong>{formatDetailPercent(potOdds.required_equity)} needed</strong>
+      <p>
+        Call {formatDetailBb(potOdds.call_amount_bb)} into a {formatDetailBb(potOdds.pot_before_call_bb)} pot.
+      </p>
+      <p>Pot if called: {formatDetailBb(potOdds.pot_if_call_bb)}</p>
+    </div>
+  );
+}
+
+function EquityCard({ equity }: { equity?: EquityDetails }) {
+  if (!equity?.available) {
+    return (
+      <div className="detail-card">
+        <span className="label">Equity</span>
+        <strong>Hidden this hand</strong>
+        <p>Exact card equity is only shown when opponent cards were revealed.</p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="detail-card">
+      <span className="label">Equity</span>
+      <strong>Hero {formatDetailPercent(equity.hero)}</strong>
+      <div className="equity-split-bar" aria-label="Hero and opponent equity">
+        <span style={{ width: formatDetailPercent(equity.hero) }} />
+        <span style={{ width: formatDetailPercent(equity.villain) }} />
+      </div>
+      <p>Opponent {formatDetailPercent(equity.villain)}</p>
+      {typeof equity.total_runouts === "number" && <p>{equity.total_runouts} runouts calculated.</p>}
+    </div>
+  );
 }

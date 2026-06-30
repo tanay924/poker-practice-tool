@@ -7,6 +7,7 @@ from typing import Any
 
 from sqlalchemy.orm import Session
 
+from app.analysis.decision_details import add_decision_details
 from app.models import AnalysisJob, Hand, SolverCache, utc_now
 from app.preflop.analysis import (
     analyze_preflop_actions,
@@ -162,6 +163,7 @@ async def process_next_analysis_job(
                 )
             )
 
+        solver_output = add_decision_details(solver_output, solver_input)
         job.solver_input_json = solver_input
         job.solver_output_json = solver_output
         job.status = "ready"
