@@ -128,15 +128,6 @@ def _unavailable_pot_odds(reason: str) -> dict[str, Any]:
 
 
 def _equity_for_result(solver_input: dict[str, Any], board: list[str]) -> dict[str, Any]:
-    if not _opponent_cards_revealed(solver_input.get("result")):
-        return {
-            "available": False,
-            "source": "hidden_opponent_cards",
-            "hero": None,
-            "villain": None,
-            "note": "Exact card equity is hidden unless opponent cards were revealed.",
-        }
-
     try:
         return exact_holdem_equity(
             hero_cards=_split_card_string(str(solver_input.get("hero_cards", ""))),
@@ -151,10 +142,6 @@ def _equity_for_result(solver_input: dict[str, Any], board: list[str]) -> dict[s
             "villain": None,
             "note": str(exc),
         }
-
-
-def _opponent_cards_revealed(result: Any) -> bool:
-    return isinstance(result, dict) and (result.get("showdown") is True or result.get("reason") == "river_completed")
 
 
 def _board_for_street(board: Any, street: str) -> list[str]:

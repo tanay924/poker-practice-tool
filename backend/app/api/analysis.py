@@ -3,6 +3,8 @@ from __future__ import annotations
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
+from app.analysis.decision_details import add_decision_details
+from app.analysis.service import build_solver_input
 from app.db import get_db
 from app.models import AnalysisJob, Hand
 from app.schemas import AnalysisDetail, AnalysisJobRead, AnalysisListItem, HandRead
@@ -45,7 +47,18 @@ def get_analysis(hand_id: int, db: Session = Depends(get_db)) -> AnalysisDetail:
         .order_by(AnalysisJob.created_at.desc())
         .first()
     )
+    job_read = AnalysisJobRead.model_validate(job) if job else None
+    if job_read is not None and job_read.solver_output_json is not None:
+        job_read = job_read.model_copy(
+            update={
+                "solver_output_json": add_decision_details(
+                    job_read.solver_output_json,
+                    build_solver_input(hand),
+                )
+            }
+        )
+
     return AnalysisDetail(
         hand=HandRead.model_validate(hand),
-        job=AnalysisJobRead.model_validate(job) if job else None,
+        job=job_read,
     )

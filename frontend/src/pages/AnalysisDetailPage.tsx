@@ -4,10 +4,11 @@ import { Link, useParams } from "react-router-dom";
 import { getAnalysis } from "../api";
 import PlayingCard from "../components/PlayingCard";
 import { formatActionEntry } from "../poker/engine";
-import { shouldRevealOpponentCards as shouldRevealOpponentCardsForResult, visibleBoardForHistory } from "../poker/visibility";
+import { visibleBoardForHistory } from "../poker/visibility";
 import type { AnalysisDetail, DecisionDetails, EquityDetails, PotOddsDetails } from "../types";
 import { decisionDetailsAvailable, formatDetailBb, formatDetailPercent } from "./analysisDecisionDetails";
 import { formatResultText } from "./analysisResultText";
+import { shouldRevealAnalysisOpponentCards } from "./analysisVisibility";
 
 export default function AnalysisDetailPage() {
   const { handId } = useParams();
@@ -42,7 +43,7 @@ export default function AnalysisDetailPage() {
   const heroCards = splitCardString(detail.hand.hero_cards);
   const villainCards = splitCardString(detail.hand.villain_cards);
   const visibleBoard = visibleBoardForHistory(detail.hand.board_json, detail.hand.action_history_json);
-  const revealOpponentCards = shouldRevealOpponentCardsForResult(detail.hand.result_json);
+  const revealOpponentCards = shouldRevealAnalysisOpponentCards(detail.hand.result_json);
   const resultText = formatResultText(detail.hand.result_json);
 
   return (
@@ -235,7 +236,7 @@ function DecisionDetailsPanel({ details }: { details?: DecisionDetails }) {
   }
 
   return (
-    <details className="decision-detail-panel">
+    <details className="decision-detail-panel" open>
       <summary>Pot odds and equity</summary>
       <div className="decision-detail-grid">
         <PotOddsCard potOdds={details?.pot_odds} />

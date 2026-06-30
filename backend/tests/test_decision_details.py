@@ -1,5 +1,10 @@
 from app.analysis.decision_details import add_decision_details
+from app.api.analysis import get_analysis
+from app.db import Base
+from app.models import AnalysisJob, Hand
 from app.poker.equity import exact_holdem_equity
+from sqlalchemy import create_engine
+from sqlalchemy.orm import sessionmaker
 
 
 def base_solver_output() -> dict:
@@ -84,7 +89,7 @@ def test_equity_is_exact_against_revealed_cards() -> None:
     assert equity["villain"] < 0.1
 
 
-def test_equity_is_not_attached_when_villain_cards_are_hidden() -> None:
+def test_equity_is_attached_for_folded_hands_in_analysis() -> None:
     solver_input = {
         "hero_position": "SB",
         "hero_cards": "AsKs",
@@ -100,5 +105,45 @@ def test_equity_is_not_attached_when_villain_cards_are_hidden() -> None:
     output = add_decision_details(base_solver_output(), solver_input)
 
     equity = output["street_results"][0]["details"]["equity"]
-    assert equity["available"] is False
-    assert equity["source"] == "hidden_opponent_cards"
+    assert equity["available"] is True
+    assert equity["source"] == "exact_revealed_cards"
+    assert equity["hero"] > equity["villain"]
+
+
+def test_get_analysis_enriches_older_saved_solver_output() -> None:
+    engine = create_engine("sqlite:///:memory:", connect_args={"check_same_thread": False})
+    TestingSession = sessionmaker(bind=engine, autoflush=False, autocommit=False)
+    Base.metadata.create_all(bind=engine)
+
+    with TestingSession() as db:
+        hand = Hand(
+            hero_position="SB",
+            villain_position="BB",
+            hero_cards="AsKs",
+            villain_cards="QhQc",
+            board_json=["Ah", "7d", "2c", "4s", "Td"],
+            stack_bb=100,
+            pot=15,
+            action_history_json=[
+                {"street": "flop", "actor": "BB", "action": "bet", "amount_bb": 5, "pot_after": 10, "node": "BB flop action"},
+                {"street": "flop", "actor": "SB", "action": "call", "amount_bb": 5, "pot_after": 15, "node": "SB flop decision"},
+            ],
+            result_json={"winner": "hero", "reason": "villain_folded"},
+        )
+        db.add(hand)
+        db.commit()
+        db.refresh(hand)
+        db.add(
+            AnalysisJob(
+                hand_id=hand.id,
+                status="ready",
+                solver_output_json=base_solver_output(),
+            )
+        )
+        db.commit()
+
+        detail = get_analysis(hand.id, db)
+
+    street_result = detail.job.solver_output_json["street_results"][0]
+    assert street_result["details"]["pot_odds"]["available"] is True
+    assert street_result["details"]["equity"]["available"] is True
