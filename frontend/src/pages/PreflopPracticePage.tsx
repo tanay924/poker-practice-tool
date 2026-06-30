@@ -250,20 +250,38 @@ function Seat({
   stackPlacement?: "above" | "below";
 }) {
   return (
-    <div className="seat">
-      {stackPlacement === "above" && <span className="seat-stack">{stack}</span>}
-      <span className="seat-label">{label}</span>
-      {stackPlacement !== "above" && <span className="seat-stack">{stack}</span>}
-      <div className="cards">
-        {cards ? (
-          cards.map((card) => <PlayingCard key={card} value={card} />)
-        ) : (
-          <>
-            <PlayingCard value="??" muted={muted} />
-            <PlayingCard value="??" muted={muted} />
-          </>
-        )}
-      </div>
+    <div className={`seat preflop-seat ${stackPlacement === "above" ? "top-seat" : "bottom-seat"}`}>
+      {stackPlacement === "above" ? (
+        <>
+          <div className="cards">
+            {cards ? (
+              cards.map((card) => <PlayingCard key={card} value={card} />)
+            ) : (
+              <>
+                <PlayingCard value="??" muted={muted} />
+                <PlayingCard value="??" muted={muted} />
+              </>
+            )}
+          </div>
+          <span className="seat-stack">{stack}</span>
+          <span className="seat-label">{label}</span>
+        </>
+      ) : (
+        <>
+          <span className="seat-label">{label}</span>
+          <span className="seat-stack">{stack}</span>
+          <div className="cards">
+            {cards ? (
+              cards.map((card) => <PlayingCard key={card} value={card} />)
+            ) : (
+              <>
+                <PlayingCard value="??" muted={muted} />
+                <PlayingCard value="??" muted={muted} />
+              </>
+            )}
+          </div>
+        </>
+      )}
     </div>
   );
 }

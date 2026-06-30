@@ -284,8 +284,27 @@ main {
 
 .preflop-table {
   aspect-ratio: 1.55;
-  grid-template-rows: 1fr auto 1fr;
+  grid-template-areas:
+    "villain"
+    "center"
+    "hero";
+  grid-template-rows: minmax(0, 1fr) auto minmax(0, 1fr);
   min-height: 500px;
+  row-gap: clamp(28px, 4vw, 58px);
+}
+
+.preflop-table .top-seat {
+  grid-area: villain;
+  align-self: end;
+}
+
+.preflop-table .bottom-seat {
+  grid-area: hero;
+  align-self: start;
+}
+
+.preflop-table .preflop-center {
+  grid-area: center;
 }
 
 .villain-seat {

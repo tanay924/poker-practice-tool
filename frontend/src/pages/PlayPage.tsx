@@ -107,8 +107,8 @@ export default function PlayPage() {
           <div className="cards">
             {revealVillainCards ? hand.villainCards.map((card) => <PlayingCard key={card} value={card} />) : <><PlayingCard value="??" muted /><PlayingCard value="??" muted /></>}
           </div>
-          <span className="seat-label">{hand.villainPosition}</span>
           <span className="seat-stack">{formatBb(displayedVillainStack)}</span>
+          <span className="seat-label">{hand.villainPosition}</span>
         </div>
 
         <div className="table-center">
