@@ -61,6 +61,10 @@ export class BundledPreflopRange {
 
     return options;
   }
+
+  handKeys(): string[] {
+    return Object.keys(this.actions).sort((left, right) => left.localeCompare(right));
+  }
 }
 
 export const legalActionsBySpot: Record<PreflopSpotId, PreflopAction[]> = {
