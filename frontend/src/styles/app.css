@@ -237,7 +237,7 @@ main {
   justify-items: center;
   min-height: 610px;
   max-width: 100%;
-  overflow: hidden;
+  overflow: visible;
   padding: clamp(26px, 4vw, 58px);
   position: relative;
   width: 100%;

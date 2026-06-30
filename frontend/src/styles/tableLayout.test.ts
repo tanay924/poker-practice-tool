@@ -24,6 +24,7 @@ assert.match(preflopPracticePage, /className={`seat preflop-seat \$\{stackPlacem
 assertWithinSectionOrder(preflopPracticePage, 'stackPlacement === "above"', 'className="cards"', 'className="seat-label"');
 assertWithinSectionOrder(preflopPracticePage, 'stackPlacement === "above"', 'className="seat-stack"', 'className="seat-label"');
 
+assert.match(css, /\.table-surface\s*{[^}]*overflow:\s*visible/s);
 assert.match(css, /\.table-surface:not\(\.preflop-table\)\s*{[^}]*grid-template-areas:\s*"villain"\s*"board"\s*"hero"/s);
 assert.match(css, /\.table-surface:not\(\.preflop-table\)\s*{[^}]*grid-template-rows:\s*minmax\(0,\s*1fr\)\s*auto\s*minmax\(0,\s*1fr\)/s);
 assert.match(css, /\.villain-seat\s*{[^}]*grid-area:\s*villain[^}]*align-self:\s*end/s);
