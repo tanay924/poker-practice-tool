@@ -56,7 +56,6 @@ export default function AnalysisDetailPage() {
 
       <section className="hand-table-snapshot" aria-label="Final table state">
         <div className="snapshot-seat snapshot-villain">
-          <span className="seat-label">Opponent {detail.hand.villain_position}</span>
           <div className="cards">
             {revealOpponentCards ? (
               villainCards.map((card) => <PlayingCard key={`villain-${card}`} value={card} />)
@@ -67,6 +66,7 @@ export default function AnalysisDetailPage() {
               </>
             )}
           </div>
+          <span className="seat-label">Opponent {detail.hand.villain_position}</span>
         </div>
 
         <div className="snapshot-board">
