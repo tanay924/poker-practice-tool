@@ -35,9 +35,17 @@ assert.deepEqual(legalActionsForSpot(PREFLOP_SPOTS.bbVsSbLimp), ["check", "raise
 
 {
   const range = getRangeForSpot(PREFLOP_SPOTS.sbOpen);
+  assert.equal(range.handKeys().includes("72o"), true);
   const options = range.optionsForHand("72o");
   assert.equal(option(options, "fold").probability, 1);
   assert.equal(option(options, "raise").probability, 0);
+}
+
+{
+  const range = getRangeForSpot(PREFLOP_SPOTS.sbVsBbReraise);
+  assert.equal(range.handKeys().includes("72o"), false);
+  assert.equal(range.handKeys().includes("J3s"), true);
+  assert.equal(option(range.optionsForHand("J3s"), "fold").probability, 1);
 }
 
 {
@@ -104,6 +112,36 @@ assert.deepEqual(legalActionsForSpot(PREFLOP_SPOTS.bbVsSbLimp), ["check", "raise
   assert.equal(answered.isComplete, true);
   assert.equal(answered.history.at(-1)?.actor, "SB");
   assert.equal(answered.history.at(-1)?.spotId, PREFLOP_SPOTS.sbVsBbReraise);
+}
+
+{
+  const round = startPreflopRound({
+    spotId: PREFLOP_SPOTS.sbVsBbReraise,
+    rng: fixedRng([0.5])
+  });
+
+  assert.equal(round.heroPosition, "SB");
+  assert.equal(round.currentDecision?.spotId, PREFLOP_SPOTS.sbVsBbReraise);
+  assert.ok(getRangeForSpot(PREFLOP_SPOTS.sbVsBbReraise).handKeys().includes(round.currentDecision?.handKey ?? ""));
+  assert.deepEqual(
+    round.history.map((entry) => `${entry.actor}:${entry.action}:${entry.automatic}`),
+    ["SB:raise:true", "BB:raise:true"]
+  );
+}
+
+{
+  const round = startPreflopRound({
+    spotId: PREFLOP_SPOTS.bbVsSbLimp,
+    rng: fixedRng([0.25])
+  });
+
+  assert.equal(round.heroPosition, "BB");
+  assert.equal(round.currentDecision?.spotId, PREFLOP_SPOTS.bbVsSbLimp);
+  assert.ok(getRangeForSpot(PREFLOP_SPOTS.bbVsSbLimp).handKeys().includes(round.currentDecision?.handKey ?? ""));
+  assert.deepEqual(
+    round.history.map((entry) => `${entry.actor}:${entry.action}:${entry.automatic}`),
+    ["SB:limp:true"]
+  );
 }
 
 console.log("preflop engine tests passed");

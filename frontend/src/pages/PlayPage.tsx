@@ -104,23 +104,25 @@ export default function PlayPage() {
     <section className="page-grid play-grid">
       <div className="table-surface">
         <div className="seat villain-seat">
-          <span className="seat-stack">{formatBb(displayedVillainStack)}</span>
-          <span className="seat-label">{hand.villainPosition}</span>
           <div className="cards">
             {revealVillainCards ? hand.villainCards.map((card) => <PlayingCard key={card} value={card} />) : <><PlayingCard value="??" muted /><PlayingCard value="??" muted /></>}
           </div>
+          <span className="seat-stack">{formatBb(displayedVillainStack)}</span>
+          <span className="seat-label">{hand.villainPosition}</span>
         </div>
 
-        <div className="board-row">
-          {hand.visibleBoard.map((card) => <PlayingCard key={card} value={card} />)}
-          {Array.from({ length: hiddenBoardSlots }).map((_, index) => (
-            <PlayingCard key={`empty-${index}`} value="--" muted />
-          ))}
-        </div>
+        <div className="table-center">
+          <div className="board-row">
+            {hand.visibleBoard.map((card) => <PlayingCard key={card} value={card} />)}
+            {Array.from({ length: hiddenBoardSlots }).map((_, index) => (
+              <PlayingCard key={`empty-${index}`} value="--" muted />
+            ))}
+          </div>
 
-        <div className="pot-display">
-          <span>Pot</span>
-          <strong>{formatBb(displayedPot)}</strong>
+          <div className="pot-display">
+            <span>Pot</span>
+            <strong>{formatBb(displayedPot)}</strong>
+          </div>
         </div>
 
         <div className="seat hero-seat">

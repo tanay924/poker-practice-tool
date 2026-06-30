@@ -56,6 +56,7 @@ export interface StartPreflopRoundOptions {
   heroCards?: [string, string];
   heroPosition?: Position;
   rng?: Rng;
+  spotId?: PreflopSpotId;
   villainCards?: [string, string];
 }
 
@@ -122,6 +123,10 @@ export function sampleAction(options: ActionOption[], rng: Rng = Math.random): A
 
 export function startPreflopRound(options: StartPreflopRoundOptions = {}): PreflopRoundState {
   const rng = options.rng ?? Math.random;
+  if (options.spotId) {
+    return startFocusedSpotRound(options.spotId, options, rng);
+  }
+
   const heroPosition = options.heroPosition ?? (rng() < 0.5 ? "SB" : "BB");
   const [heroCards, villainCards] = resolveHoleCards(options, rng);
   const baseState: PreflopRoundState = {
@@ -146,6 +151,39 @@ export function startPreflopRound(options: StartPreflopRoundOptions = {}): Prefl
   }
 
   return applyOpponentFirstAction(baseState, rng);
+}
+
+function startFocusedSpotRound(
+  spotId: PreflopSpotId,
+  options: StartPreflopRoundOptions,
+  rng: Rng
+): PreflopRoundState {
+  const heroPosition = actorPositionForSpot(spotId);
+  const heroCards = options.heroCards ?? cardsForHandKey(sampleHandKeyForSpot(spotId, rng), [], rng);
+  const villainCards = options.villainCards ?? focusedVillainCardsForSpot(spotId, heroCards, rng);
+  let state: PreflopRoundState = {
+    correctCount: 0,
+    currentDecision: null,
+    decisionCount: 0,
+    heroCards,
+    heroPosition,
+    history: [],
+    isComplete: false,
+    lastFeedback: null,
+    message: "",
+    villainCards
+  };
+
+  for (const setup of setupActionsForFocusedSpot(spotId, heroCards, villainCards)) {
+    const decision = buildDecision(setup.spotId, setup.actorPosition, setup.cards);
+    state = appendHistory(state, decision, setup.action, probabilityForAction(decision.options, setup.action), true);
+  }
+
+  return {
+    ...state,
+    currentDecision: buildDecision(spotId, heroPosition, heroCards),
+    message: `${promptForSpot(spotId)}.`
+  };
 }
 
 export function answerCurrentDecision(
@@ -319,6 +357,75 @@ function buildDecision(spotId: PreflopSpotId, actorPosition: Position, cards: [s
   };
 }
 
+function actorPositionForSpot(spotId: PreflopSpotId): Position {
+  if (spotId === PREFLOP_SPOTS.bbVsSbOpen || spotId === PREFLOP_SPOTS.bbVsSbLimp) {
+    return "BB";
+  }
+  return "SB";
+}
+
+function focusedVillainCardsForSpot(spotId: PreflopSpotId, heroCards: [string, string], rng: Rng): [string, string] {
+  const supportingAction = opponentSupportingActionForSpot(spotId);
+  if (!supportingAction) {
+    return randomHoleCards(heroCards, rng);
+  }
+
+  const handKey = sampleHandKeyForAction(supportingAction.spotId, supportingAction.action, rng);
+  return cardsForHandKey(handKey, heroCards, rng);
+}
+
+function opponentSupportingActionForSpot(spotId: PreflopSpotId): { action: PreflopAction; spotId: PreflopSpotId } | null {
+  if (spotId === PREFLOP_SPOTS.bbVsSbOpen) {
+    return { action: "raise", spotId: PREFLOP_SPOTS.sbOpen };
+  }
+  if (spotId === PREFLOP_SPOTS.bbVsSbLimp) {
+    return { action: "limp", spotId: PREFLOP_SPOTS.sbOpen };
+  }
+  if (spotId === PREFLOP_SPOTS.sbVsBbReraise) {
+    return { action: "raise", spotId: PREFLOP_SPOTS.bbVsSbOpen };
+  }
+  if (spotId === PREFLOP_SPOTS.sbLimpVsBbRaise) {
+    return { action: "raise", spotId: PREFLOP_SPOTS.bbVsSbLimp };
+  }
+  return null;
+}
+
+function setupActionsForFocusedSpot(
+  spotId: PreflopSpotId,
+  heroCards: [string, string],
+  villainCards: [string, string]
+): Array<{ action: PreflopAction; actorPosition: Position; cards: [string, string]; spotId: PreflopSpotId }> {
+  if (spotId === PREFLOP_SPOTS.bbVsSbOpen) {
+    return [{ action: "raise", actorPosition: "SB", cards: villainCards, spotId: PREFLOP_SPOTS.sbOpen }];
+  }
+  if (spotId === PREFLOP_SPOTS.bbVsSbLimp) {
+    return [{ action: "limp", actorPosition: "SB", cards: villainCards, spotId: PREFLOP_SPOTS.sbOpen }];
+  }
+  if (spotId === PREFLOP_SPOTS.sbVsBbReraise) {
+    return [
+      { action: "raise", actorPosition: "SB", cards: heroCards, spotId: PREFLOP_SPOTS.sbOpen },
+      { action: "raise", actorPosition: "BB", cards: villainCards, spotId: PREFLOP_SPOTS.bbVsSbOpen }
+    ];
+  }
+  if (spotId === PREFLOP_SPOTS.sbLimpVsBbRaise) {
+    return [
+      { action: "limp", actorPosition: "SB", cards: heroCards, spotId: PREFLOP_SPOTS.sbOpen },
+      { action: "raise", actorPosition: "BB", cards: villainCards, spotId: PREFLOP_SPOTS.bbVsSbLimp }
+    ];
+  }
+  return [];
+}
+
+function sampleHandKeyForSpot(spotId: PreflopSpotId, rng: Rng): string {
+  return sampleFromList(getRangeForSpot(spotId).handKeys(), rng);
+}
+
+function sampleHandKeyForAction(spotId: PreflopSpotId, action: PreflopAction, rng: Rng): string {
+  const range = getRangeForSpot(spotId);
+  const handKeys = range.handKeys().filter((handKey) => probabilityForAction(range.optionsForHand(handKey), action) > 0);
+  return sampleFromList(handKeys, rng);
+}
+
 function buildFeedback({
   action,
   correct,
@@ -415,6 +522,31 @@ function resolveHoleCards(options: StartPreflopRoundOptions, rng: Rng): [[string
   const heroCards = options.heroCards ?? [deck[0], deck[1]];
   const villainCards = options.villainCards ?? [deck[2], deck[3]];
   return [heroCards, villainCards];
+}
+
+function cardsForHandKey(handKey: string, excludedCards: string[], rng: Rng): [string, string] {
+  const combos = buildDeck()
+    .filter((card) => !excludedCards.includes(card))
+    .flatMap((firstCard, firstIndex, deck) => deck.slice(firstIndex + 1).map((secondCard) => [firstCard, secondCard] as [string, string]))
+    .filter(([firstCard, secondCard]) => handKeyFromCards(firstCard, secondCard) === handKey);
+
+  if (combos.length === 0) {
+    throw new Error(`No available combo for ${handKey}`);
+  }
+
+  return sampleFromList(combos, rng);
+}
+
+function randomHoleCards(excludedCards: string[], rng: Rng): [string, string] {
+  const deck = shuffle(buildDeck().filter((card) => !excludedCards.includes(card)), rng);
+  return [deck[0], deck[1]];
+}
+
+function sampleFromList<T>(items: T[], rng: Rng): T {
+  if (items.length === 0) {
+    throw new Error("Cannot sample from an empty list");
+  }
+  return items[Math.floor(clampRng(rng()) * items.length)];
 }
 
 function buildDeck(): string[] {

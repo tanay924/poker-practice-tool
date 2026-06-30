@@ -13,6 +13,15 @@ import {
   type PreflopHistoryEntry,
   type PreflopRoundState
 } from "../preflop/engine";
+import {
+  DEFAULT_PRACTICE_SETTINGS,
+  PRACTICE_MODE_OPTIONS,
+  SPOT_FOCUS_OPTIONS,
+  practiceSettingsToStartOptions,
+  type PreflopPracticeMode,
+  type PreflopPracticeSettings
+} from "../preflop/practiceModes";
+import { historyEntryDisplay } from "../preflop/historyDisplay";
 import { listBundledPreflopRanges } from "../preflop/rangeData";
 import { settlementForPreflopRound } from "../preflop/settlement";
 import { formatBb } from "../settlement";
@@ -24,7 +33,8 @@ interface SessionStats {
 }
 
 export default function PreflopPracticePage() {
-  const [round, setRound] = useState<PreflopRoundState>(() => startPreflopRound());
+  const [practiceSettings, setPracticeSettings] = useState<PreflopPracticeSettings>(DEFAULT_PRACTICE_SETTINGS);
+  const [round, setRound] = useState<PreflopRoundState>(() => startPreflopRound(practiceSettingsToStartOptions(DEFAULT_PRACTICE_SETTINGS)));
   const [stats, setStats] = useState<SessionStats>({ correctDecisions: 0, hands: 0, totalDecisions: 0 });
   const ranges = useMemo(() => listBundledPreflopRanges(), []);
   const legalActions = round.currentDecision ? legalActionsForSpot(round.currentDecision.spotId) : [];
@@ -32,6 +42,7 @@ export default function PreflopPracticePage() {
   const accuracy = stats.totalDecisions === 0 ? 0 : Math.round((stats.correctDecisions / stats.totalDecisions) * 100);
   const heroStack = settlement ? formatBb(settlement.heroAfterBb) : "100bb";
   const villainStack = settlement ? formatBb(settlement.opponentAfterBb) : "100bb";
+  const activePracticeLabel = practiceLabel(practiceSettings);
 
   const recordRoundIfComplete = (nextRound: PreflopRoundState, previousRound: PreflopRoundState) => {
     if (!nextRound.isComplete || previousRound.isComplete) {
@@ -52,15 +63,33 @@ export default function PreflopPracticePage() {
     });
   };
 
-  const dealNext = (heroPosition?: Position) => {
-    setRound(startPreflopRound({ heroPosition }));
+  const dealNext = (settings = practiceSettings) => {
+    setRound(startPreflopRound(practiceSettingsToStartOptions(settings)));
+  };
+
+  const applyPracticeSettings = (settings: PreflopPracticeSettings) => {
+    setPracticeSettings(settings);
+    setStats({ correctDecisions: 0, hands: 0, totalDecisions: 0 });
+    dealNext(settings);
+  };
+
+  const chooseMode = (mode: PreflopPracticeMode) => {
+    applyPracticeSettings({ ...practiceSettings, mode });
+  };
+
+  const chooseSeat = (seat: Position) => {
+    applyPracticeSettings({ ...practiceSettings, mode: "seat", seat });
+  };
+
+  const chooseSpot = (spotId: PreflopPracticeSettings["spotId"]) => {
+    applyPracticeSettings({ ...practiceSettings, mode: "spot", spotId });
   };
 
   return (
     <section className="page-grid preflop-grid">
       <div className="preflop-main">
         <div className="page-heading">
-          <p className="eyebrow">100bb heads-up cash</p>
+          <p className="eyebrow">100bb heads-up cash · {activePracticeLabel}</p>
           <h2>Opening Range Practice</h2>
         </div>
 
@@ -83,6 +112,67 @@ export default function PreflopPracticePage() {
       </div>
 
       <aside className="control-panel preflop-control">
+        <section className="panel practice-mode-panel">
+          <div className="range-header">
+            <div>
+              <h3>Practice Setup</h3>
+              <p>{activePracticeLabel}</p>
+            </div>
+          </div>
+
+          <div className="practice-mode-grid" role="group" aria-label="Preflop practice mode">
+            {PRACTICE_MODE_OPTIONS.map((mode) => (
+              <button
+                aria-pressed={practiceSettings.mode === mode.id}
+                className={`mode-card ${practiceSettings.mode === mode.id ? "active" : ""}`}
+                key={mode.id}
+                onClick={() => chooseMode(mode.id)}
+                type="button"
+              >
+                <strong>{mode.label}</strong>
+                <span>{mode.description}</span>
+              </button>
+            ))}
+          </div>
+
+          {practiceSettings.mode === "seat" && (
+            <div className="seat-focus-row">
+              <span className="label">Seat</span>
+              <div className="segmented-control two-up" role="group" aria-label="Seat focus">
+                {(["SB", "BB"] as Position[]).map((seat) => (
+                  <button
+                    aria-pressed={practiceSettings.seat === seat}
+                    className={practiceSettings.seat === seat ? "active" : ""}
+                    key={seat}
+                    onClick={() => chooseSeat(seat)}
+                    type="button"
+                  >
+                    {seat}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {practiceSettings.mode === "spot" && (
+            <div className="spot-focus-list">
+              {SPOT_FOCUS_OPTIONS.map((spot) => (
+                <button
+                  aria-pressed={practiceSettings.spotId === spot.spotId}
+                  className={`spot-focus-button ${practiceSettings.spotId === spot.spotId ? "active" : ""}`}
+                  key={spot.spotId}
+                  onClick={() => chooseSpot(spot.spotId)}
+                  type="button"
+                >
+                  <span>{spot.actorPosition}</span>
+                  <strong>{spot.title}</strong>
+                  <small>{spot.detail}</small>
+                </button>
+              ))}
+            </div>
+          )}
+        </section>
+
         <div className="metric-strip">
           <Metric label="Hands" value={String(stats.hands)} />
           <Metric label="Decisions" value={String(stats.totalDecisions)} />
@@ -108,15 +198,6 @@ export default function PreflopPracticePage() {
               Next hand
             </button>
           )}
-        </div>
-
-        <div className="preflop-deal-row">
-          <button type="button" className="secondary compact-button" onClick={() => dealNext("SB")}>
-            Deal SB
-          </button>
-          <button type="button" className="secondary compact-button" onClick={() => dealNext("BB")}>
-            Deal BB
-          </button>
         </div>
 
         {settlement && <SettlementSummaryPanel settlement={settlement} />}
@@ -169,20 +250,38 @@ function Seat({
   stackPlacement?: "above" | "below";
 }) {
   return (
-    <div className="seat">
-      {stackPlacement === "above" && <span className="seat-stack">{stack}</span>}
-      <span className="seat-label">{label}</span>
-      {stackPlacement !== "above" && <span className="seat-stack">{stack}</span>}
-      <div className="cards">
-        {cards ? (
-          cards.map((card) => <PlayingCard key={card} value={card} />)
-        ) : (
-          <>
-            <PlayingCard value="??" muted={muted} />
-            <PlayingCard value="??" muted={muted} />
-          </>
-        )}
-      </div>
+    <div className={`seat preflop-seat ${stackPlacement === "above" ? "top-seat" : "bottom-seat"}`}>
+      {stackPlacement === "above" ? (
+        <>
+          <div className="cards">
+            {cards ? (
+              cards.map((card) => <PlayingCard key={card} value={card} />)
+            ) : (
+              <>
+                <PlayingCard value="??" muted={muted} />
+                <PlayingCard value="??" muted={muted} />
+              </>
+            )}
+          </div>
+          <span className="seat-stack">{stack}</span>
+          <span className="seat-label">{label}</span>
+        </>
+      ) : (
+        <>
+          <span className="seat-label">{label}</span>
+          <span className="seat-stack">{stack}</span>
+          <div className="cards">
+            {cards ? (
+              cards.map((card) => <PlayingCard key={card} value={card} />)
+            ) : (
+              <>
+                <PlayingCard value="??" muted={muted} />
+                <PlayingCard value="??" muted={muted} />
+              </>
+            )}
+          </div>
+        </>
+      )}
     </div>
   );
 }
@@ -213,19 +312,29 @@ function OptionBars({ options, selectedAction }: { options: ActionOption[]; sele
 }
 
 function HistoryItem({ entry, isComplete }: { entry: PreflopHistoryEntry; isComplete: boolean }) {
-  const handLabel = entry.automatic && !isComplete ? "--" : entry.handKey;
+  const { handLabel, probabilityLabel } = historyEntryDisplay(entry, isComplete);
   return (
     <li>
       <span>{entry.actor}</span>
       <strong>{actionLabel(entry.action)}</strong>
       <em>{handLabel}</em>
-      <small>{Math.round(entry.probability * 100)}%</small>
+      <small>{probabilityLabel}</small>
     </li>
   );
 }
 
 function villainPosition(heroPosition: Position): Position {
   return heroPosition === "SB" ? "BB" : "SB";
+}
+
+function practiceLabel(settings: PreflopPracticeSettings): string {
+  if (settings.mode === "seat") {
+    return `${settings.seat} focus`;
+  }
+  if (settings.mode === "spot") {
+    return SPOT_FOCUS_OPTIONS.find((spot) => spot.spotId === settings.spotId)?.title ?? "Spot focus";
+  }
+  return "Mixed drill";
 }
 
 function preflopActionButtonClass(action: PreflopAction) {
