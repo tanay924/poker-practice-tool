@@ -20,11 +20,18 @@ from app.solver.errors import SolverExecutionError, UnsupportedAnalysisError
 from app.solver.factory import create_solver_from_env
 
 
-def create_analysis_job(db: Session, hand_id: int) -> AnalysisJob:
+def create_analysis_job(db: Session, hand_id: int, user_id: str | None = None) -> AnalysisJob:
+    hand = db.get(Hand, hand_id)
+    if hand is None:
+        raise ValueError(f"Hand {hand_id} does not exist")
+    if user_id is not None and hand.user_id != user_id:
+        raise ValueError(f"Hand {hand_id} does not exist")
+
     existing = db.query(AnalysisJob).filter(AnalysisJob.hand_id == hand_id).first()
     if existing:
         if existing.status in {"failed", "unsupported"}:
             existing.status = "queued"
+            existing.user_id = hand.user_id
             existing.started_at = None
             existing.finished_at = None
             existing.error = None
@@ -34,11 +41,7 @@ def create_analysis_job(db: Session, hand_id: int) -> AnalysisJob:
             db.refresh(existing)
         return existing
 
-    hand = db.get(Hand, hand_id)
-    if hand is None:
-        raise ValueError(f"Hand {hand_id} does not exist")
-
-    job = AnalysisJob(hand_id=hand_id, status="queued")
+    job = AnalysisJob(hand_id=hand_id, user_id=hand.user_id, status="queued")
     db.add(job)
     db.commit()
     db.refresh(job)

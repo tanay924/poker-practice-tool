@@ -1,13 +1,14 @@
 # Local Poker Trainer
 
-A local-only heads-up NLHE trainer for offline study.
+A heads-up NLHE trainer for study.
 
-The MVP lets you drill bundled 100bb HU preflop ranges, play simplified 100bb SB-vs-BB hands from preflop through postflop, save completed hands, submit background Shark analysis jobs, keep playing while jobs run, and review answer sheets later.
+The MVP lets you drill bundled 100bb HU preflop ranges, play simplified 100bb SB-vs-BB hands from preflop through postflop, save completed hands when signed in, submit background Shark analysis jobs, keep playing while jobs run, and review private answer sheets later.
 
 ## Stack
 
 - Frontend: React, Vite, TypeScript
 - Backend: FastAPI, Python, SQLite
+- Auth: Supabase Auth JWTs
 - Background jobs: local worker loop inside the backend process
 - Solver: Shark v2.6.0 local worker for accurate postflop analysis
 
@@ -25,6 +26,7 @@ cd poker-practice-tool
 ```powershell
 cd backend
 python -m pip install -r requirements.txt
+$env:SUPABASE_PROJECT_URL='https://your-project.supabase.co'
 $env:POKER_TRAINER_SHARK_PATH=(Resolve-Path ..\vendor\shark-2.0\build\shark_worker.exe).Path
 $env:POKER_TRAINER_SHARK_TIMEOUT_SECONDS='900'
 python -m uvicorn app.main:app --host 127.0.0.1 --port 8000
@@ -39,6 +41,39 @@ Health check:
 
 ```powershell
 Invoke-WebRequest http://127.0.0.1:8000/api/health -UseBasicParsing
+```
+
+## Supabase Auth
+
+Guests can use `/play`, `/preflop`, and `/ranges`. Saving hands, creating analysis jobs, and viewing answer sheets require a signed-in Supabase user.
+
+Frontend:
+
+```powershell
+cd frontend
+$env:VITE_SUPABASE_URL='https://your-project.supabase.co'
+$env:VITE_SUPABASE_PUBLISHABLE_KEY='your-supabase-publishable-key'
+npm run dev
+```
+
+Backend:
+
+```powershell
+cd backend
+$env:SUPABASE_PROJECT_URL='https://your-project.supabase.co'
+$env:SUPABASE_JWT_AUDIENCE='authenticated'
+python -m uvicorn app.main:app --host 127.0.0.1 --port 8000
+```
+
+Supabase should have email/password auth enabled with email confirmation on. Add these redirect URLs in Supabase for local development:
+
+- `http://127.0.0.1:5173/auth/callback`
+- `http://localhost:5173/auth/callback`
+
+Range imports are admin-only. Set a comma-separated list of Supabase user ids for admins:
+
+```powershell
+$env:POKER_TRAINER_ADMIN_USER_IDS='supabase-user-id-1,supabase-user-id-2'
 ```
 
 ## Shark Solver
@@ -103,10 +138,10 @@ npm run dev
 
 ## Pages
 
-- `/play`: play a simplified HU hand from a Random/SB/BB seat mode, save it, and request analysis.
+- `/play`: play a simplified HU hand from a Random/SB/BB seat mode. Guests can play without saving; signed-in users can save and request analysis.
 - `/preflop`: practice bundled 100bb HU opening ranges through the available 3-bet decision tree.
-- `/analysis`: list queued, solving, ready, failed, and unsupported jobs.
-- `/analysis/:handId`: view the Shark answer sheet and bundled preflop feedback.
+- `/analysis`: list the signed-in user's queued, solving, ready, failed, and unsupported jobs.
+- `/analysis/:handId`: view a private Shark answer sheet and bundled preflop feedback.
 - `/ranges`: inspect the five bundled 100bb HU preflop ranges as color-coded 13x13 range tables.
 
 ## Range JSON Format

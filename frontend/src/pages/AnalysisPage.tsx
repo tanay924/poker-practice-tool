@@ -2,10 +2,12 @@ import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 
 import { listAnalysis } from "../api";
+import { useAuth } from "../auth/AuthContext";
 import type { AnalysisListItem } from "../types";
 import { analysisStatusCounts, analysisStatusOptions, filterAnalysisItems, type AnalysisStatusFilter } from "./analysisListFilters";
 
 export default function AnalysisPage() {
+  const { accessToken, authConfigured, loading: authLoading, user } = useAuth();
   const [items, setItems] = useState<AnalysisListItem[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [query, setQuery] = useState("");
@@ -14,9 +16,14 @@ export default function AnalysisPage() {
   const statusCounts = useMemo(() => analysisStatusCounts(items), [items]);
 
   useEffect(() => {
+    if (!accessToken) {
+      setItems([]);
+      return;
+    }
+
     let cancelled = false;
     const refresh = () => {
-      listAnalysis()
+      listAnalysis(accessToken)
         .then((next) => {
           if (!cancelled) {
             setItems(next);
@@ -36,7 +43,33 @@ export default function AnalysisPage() {
       cancelled = true;
       window.clearInterval(interval);
     };
-  }, []);
+  }, [accessToken]);
+
+  if (authLoading) {
+    return <p className="muted-text">Checking account...</p>;
+  }
+
+  if (!user) {
+    return (
+      <section className="stack">
+        <div className="page-heading">
+          <p className="eyebrow">Saved study</p>
+          <h2>Analysis</h2>
+        </div>
+        <div className="panel signed-out-panel">
+          <h3>Sign in to review saved hands</h3>
+          <p className="muted-text">
+            Guest hands stay on the table only. Create an account to save hands, run solver analysis, and keep your answer sheets private.
+          </p>
+          {authConfigured ? (
+            <Link className="button-link" to="/auth?redirect=/analysis">Sign in</Link>
+          ) : (
+            <p className="error-text">Supabase is not configured yet.</p>
+          )}
+        </div>
+      </section>
+    );
+  }
 
   return (
     <section className="stack">

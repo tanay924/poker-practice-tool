@@ -3,6 +3,7 @@ from sqlalchemy.orm import sessionmaker
 
 from app.analysis.service import create_analysis_job, process_next_analysis_job
 from app.api.analysis import list_analysis
+from app.auth import AuthUser
 from app.db import Base
 from app.models import AnalysisJob, Hand
 
@@ -160,6 +161,7 @@ def test_analysis_list_only_includes_revealed_board_cards() -> None:
 
     with TestingSession() as db:
         preflop_hand = Hand(
+            user_id="user-a",
             hero_position="SB",
             villain_position="BB",
             hero_cards="AdTd",
@@ -188,6 +190,7 @@ def test_analysis_list_only_includes_revealed_board_cards() -> None:
             result_json={"winner": "hero", "reason": "villain_folded_preflop"},
         )
         flop_hand = make_integrated_hand()
+        flop_hand.user_id = "user-a"
         db.add_all([preflop_hand, flop_hand])
         db.commit()
         db.refresh(preflop_hand)
@@ -198,7 +201,7 @@ def test_analysis_list_only_includes_revealed_board_cards() -> None:
         ])
         db.commit()
 
-        rows = list_analysis(db)
+        rows = list_analysis(db, AuthUser(user_id="user-a"))
 
     boards_by_hand_id = {row.hand_id: row.board for row in rows}
     assert boards_by_hand_id[preflop_hand.id] == []

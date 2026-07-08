@@ -189,6 +189,32 @@ a:hover {
   color: #ffe6a6;
 }
 
+.account-controls {
+  align-items: center;
+  color: var(--text-soft);
+  display: flex;
+  font-size: 0.84rem;
+  font-weight: 800;
+  gap: 10px;
+}
+
+.account-link,
+.account-status {
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  color: var(--text-soft);
+  font-size: 0.84rem;
+  font-weight: 900;
+  padding: 8px 11px;
+  text-decoration: none;
+}
+
+.account-link:hover {
+  background: rgba(255, 255, 255, 0.08);
+  color: var(--text);
+  text-decoration: none;
+}
+
 main {
   padding: clamp(18px, 4vw, 52px);
 }
@@ -954,6 +980,29 @@ button.compact-button,
 .result-box {
   display: grid;
   gap: 12px;
+}
+
+.auth-page {
+  display: grid;
+  justify-items: center;
+}
+
+.auth-panel {
+  display: grid;
+  gap: 14px;
+  max-width: 460px;
+  width: min(100%, 460px);
+}
+
+.auth-form {
+  display: grid;
+  gap: 12px;
+}
+
+.auth-form label,
+.signed-out-panel {
+  display: grid;
+  gap: 8px;
 }
 
 .payout-card {

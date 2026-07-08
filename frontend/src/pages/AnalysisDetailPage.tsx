@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 
 import { getAnalysis } from "../api";
+import { useAuth } from "../auth/AuthContext";
 import PlayingCard from "../components/PlayingCard";
 import { formatActionEntry } from "../poker/engine";
 import { visibleBoardForHistory } from "../poker/visibility";
@@ -12,20 +13,42 @@ import { shouldRevealAnalysisOpponentCards } from "./analysisVisibility";
 
 export default function AnalysisDetailPage() {
   const { handId } = useParams();
+  const { accessToken, authConfigured, loading: authLoading, user } = useAuth();
   const [detail, setDetail] = useState<AnalysisDetail | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    if (!handId) {
+    if (!handId || !accessToken) {
       return;
     }
-    getAnalysis(handId)
+    getAnalysis(handId, accessToken)
       .then((next) => {
         setDetail(next);
         setError(null);
       })
       .catch((err: Error) => setError(err.message));
-  }, [handId]);
+  }, [accessToken, handId]);
+
+  if (authLoading) {
+    return <p className="muted-text">Checking account...</p>;
+  }
+
+  if (!user) {
+    return (
+      <section className="stack">
+        <Link className="back-link" to="/analysis">Back to analysis</Link>
+        <div className="panel signed-out-panel">
+          <h2>Sign in to view analysis</h2>
+          <p className="muted-text">Answer sheets are private to the account that saved the hand.</p>
+          {authConfigured ? (
+            <Link className="button-link" to={`/auth?redirect=${encodeURIComponent(`/analysis/${handId ?? ""}`)}`}>Sign in</Link>
+          ) : (
+            <p className="error-text">Supabase is not configured yet.</p>
+          )}
+        </div>
+      </section>
+    );
+  }
 
   if (error) {
     return <p className="error-text">{error}</p>;

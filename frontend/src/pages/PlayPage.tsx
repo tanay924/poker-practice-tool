@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 
 import { analyzeHand, getAnalysis, saveHand } from "../api";
+import { useAuth } from "../auth/AuthContext";
 import PlayingCard from "../components/PlayingCard";
 import SettlementSummaryPanel from "../components/SettlementSummaryPanel";
 import type { AnalysisJob, HandRead } from "../types";
@@ -11,11 +12,13 @@ import { shouldRevealOpponentCards } from "../poker/visibility";
 import { formatBb } from "../settlement";
 import { analysisControlFor, nextPlayAnalysisStateAfterAnalyzeSuccess, nextPlayAnalysisStateAfterRefresh } from "./playAnalysisControl";
 import { playShortcutForAction, resolvePlayShortcut } from "./playActionShortcuts";
+import { playCompletionMessage, playCompletionPrimaryAction } from "./playCompletionCopy";
 
 const SEAT_MODE_STORAGE_KEY = "poker-trainer-seat-mode";
 const SEAT_MODES: SeatMode[] = ["random", "SB", "BB"];
 
 export default function PlayPage() {
+  const { accessToken, authConfigured, loading: authLoading, user } = useAuth();
   const initialSeatMode = readSeatMode();
   const [seatMode, setSeatMode] = useState<SeatMode>(initialSeatMode);
   const [hand, setHand] = useState(() => startNewHand({ seatMode: initialSeatMode }));
@@ -37,31 +40,43 @@ export default function PlayPage() {
   const displayedHeroStack = settlement ? settlement.heroAfterBb : hand.heroStack;
   const displayedVillainStack = settlement ? settlement.opponentAfterBb : hand.villainStack;
   const displayedPot = settlement && settlement.status !== "showdown" ? 0 : hand.pot;
+  const completionState = {
+    authConfigured,
+    authLoading,
+    isAuthenticated: Boolean(user && accessToken),
+    savedHandId: savedHand?.id ?? null,
+    saving
+  };
+  const completionAuthAction = playCompletionPrimaryAction(completionState);
 
   useEffect(() => {
-    if (!hand.handOver || saveAttempted) {
+    if (!hand.handOver || saveAttempted || authLoading) {
       return;
     }
 
     setSaveAttempted(true);
+    if (!accessToken) {
+      return;
+    }
+
     setSaving(true);
-    saveHand(toHandPayload(hand))
+    saveHand(toHandPayload(hand), accessToken)
       .then((created) => {
         setSavedHand(created);
         setError(null);
       })
       .catch((err: Error) => setError(err.message))
       .finally(() => setSaving(false));
-  }, [hand, saveAttempted]);
+  }, [accessToken, authLoading, hand, saveAttempted]);
 
   useEffect(() => {
-    if (!savedHand) {
+    if (!savedHand || !accessToken) {
       return;
     }
 
     let cancelled = false;
     const refresh = () => {
-      getAnalysis(savedHand.id)
+      getAnalysis(savedHand.id, accessToken)
         .then((detail) => {
           if (!cancelled) {
             const next = nextPlayAnalysisStateAfterRefresh({ analysisJob: null, error: null }, detail);
@@ -78,7 +93,7 @@ export default function PlayPage() {
       cancelled = true;
       window.clearInterval(interval);
     };
-  }, [savedHand]);
+  }, [accessToken, savedHand]);
 
   const act = useCallback((action: TrainerAction) => {
     setHand((current) => applyHeroAction(current, action));
@@ -117,11 +132,11 @@ export default function PlayPage() {
   }, [act, hand.handOver, legalActions, newHand]);
 
   const requestAnalysis = () => {
-    if (!savedHand) {
+    if (!savedHand || !accessToken) {
       return;
     }
     setError(null);
-    analyzeHand(savedHand.id)
+    analyzeHand(savedHand.id, accessToken)
       .then((job) => {
         const next = nextPlayAnalysisStateAfterAnalyzeSuccess({ analysisJob: null, error: null }, job);
         setAnalysisJob(next.analysisJob);
@@ -217,7 +232,12 @@ export default function PlayPage() {
         {hand.handOver && (
           <div className="result-box">
             <h2>Hand complete</h2>
-            <p>{saving ? "Saving hand..." : savedHand ? `Saved as hand #${savedHand.id}` : "Waiting to save."}</p>
+            <p>{playCompletionMessage(completionState)}</p>
+            {completionAuthAction && (
+              <Link className="button-link" to={completionAuthAction.to}>
+                {completionAuthAction.label}
+              </Link>
+            )}
             {analysisControl && (
               analysisControl.mode === "view" && analysisControl.href ? (
                 <Link className="button-link" to={analysisControl.href}>

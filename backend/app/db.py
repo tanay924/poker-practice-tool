@@ -4,7 +4,7 @@ import os
 from pathlib import Path
 from typing import Generator
 
-from sqlalchemy import create_engine
+from sqlalchemy import create_engine, inspect, text
 from sqlalchemy.orm import DeclarativeBase, Session, sessionmaker
 
 
@@ -32,6 +32,7 @@ def init_db() -> None:
     import app.models  # noqa: F401
 
     Base.metadata.create_all(bind=engine)
+    _ensure_auth_columns()
 
 
 def get_db() -> Generator[Session, None, None]:
@@ -40,3 +41,19 @@ def get_db() -> Generator[Session, None, None]:
         yield db
     finally:
         db.close()
+
+
+def _ensure_auth_columns() -> None:
+    for table_name in ("hands", "analysis_jobs"):
+        inspector = inspect(engine)
+        columns = {column["name"] for column in inspector.get_columns(table_name)}
+        if "user_id" not in columns:
+            with engine.begin() as connection:
+                connection.execute(text(f"ALTER TABLE {table_name} ADD COLUMN user_id VARCHAR(64)"))
+
+        index_name = f"ix_{table_name}_user_id"
+        inspector = inspect(engine)
+        indexes = {index["name"] for index in inspector.get_indexes(table_name)}
+        if index_name not in indexes:
+            with engine.begin() as connection:
+                connection.execute(text(f"CREATE INDEX IF NOT EXISTS {index_name} ON {table_name} (user_id)"))

@@ -1,5 +1,6 @@
 from app.analysis.decision_details import add_decision_details
 from app.api.analysis import get_analysis
+from app.auth import AuthUser
 from app.db import Base
 from app.models import AnalysisJob, Hand
 from app.poker.equity import exact_holdem_equity
@@ -117,6 +118,7 @@ def test_get_analysis_enriches_older_saved_solver_output() -> None:
 
     with TestingSession() as db:
         hand = Hand(
+            user_id="user-a",
             hero_position="SB",
             villain_position="BB",
             hero_cards="AsKs",
@@ -142,7 +144,7 @@ def test_get_analysis_enriches_older_saved_solver_output() -> None:
         )
         db.commit()
 
-        detail = get_analysis(hand.id, db)
+        detail = get_analysis(hand.id, db, AuthUser(user_id="user-a"))
 
     street_result = detail.job.solver_output_json["street_results"][0]
     assert street_result["details"]["pot_odds"]["available"] is True

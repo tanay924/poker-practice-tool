@@ -7,6 +7,7 @@ from sqlalchemy.orm import Session
 
 from app.analysis.decision_details import add_decision_details
 from app.analysis.service import build_solver_input
+from app.auth import AuthUser, require_current_user
 from app.db import get_db
 from app.models import AnalysisJob, Hand
 from app.schemas import AnalysisDetail, AnalysisJobRead, AnalysisListItem, HandRead
@@ -22,10 +23,14 @@ BOARD_CARDS_BY_STREET = {
 
 
 @router.get("", response_model=list[AnalysisListItem])
-def list_analysis(db: Session = Depends(get_db)) -> list[AnalysisListItem]:
+def list_analysis(
+    db: Session = Depends(get_db),
+    current_user: AuthUser = Depends(require_current_user),
+) -> list[AnalysisListItem]:
     rows = (
         db.query(AnalysisJob, Hand)
         .join(Hand, Hand.id == AnalysisJob.hand_id)
+        .filter(Hand.user_id == current_user.user_id)
         .order_by(AnalysisJob.created_at.desc())
         .limit(100)
         .all()
@@ -45,8 +50,12 @@ def list_analysis(db: Session = Depends(get_db)) -> list[AnalysisListItem]:
 
 
 @router.get("/{hand_id}", response_model=AnalysisDetail)
-def get_analysis(hand_id: int, db: Session = Depends(get_db)) -> AnalysisDetail:
-    hand = db.get(Hand, hand_id)
+def get_analysis(
+    hand_id: int,
+    db: Session = Depends(get_db),
+    current_user: AuthUser = Depends(require_current_user),
+) -> AnalysisDetail:
+    hand = db.query(Hand).filter(Hand.id == hand_id, Hand.user_id == current_user.user_id).first()
     if hand is None:
         raise HTTPException(status_code=404, detail="Hand not found")
 

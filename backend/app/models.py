@@ -3,8 +3,7 @@ from __future__ import annotations
 from datetime import datetime, timezone
 from typing import Any
 
-from sqlalchemy import DateTime, Float, ForeignKey, Integer, String, Text
-from sqlalchemy.dialects.sqlite import JSON
+from sqlalchemy import JSON, DateTime, Float, ForeignKey, Integer, String, Text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db import Base
@@ -18,6 +17,7 @@ class Hand(Base):
     __tablename__ = "hands"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
+    user_id: Mapped[str | None] = mapped_column(String(64), nullable=True, index=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now, nullable=False)
     hero_position: Mapped[str] = mapped_column(String(16), nullable=False)
     villain_position: Mapped[str] = mapped_column(String(16), nullable=False)
@@ -37,6 +37,7 @@ class AnalysisJob(Base):
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
     hand_id: Mapped[int] = mapped_column(ForeignKey("hands.id"), nullable=False, index=True)
+    user_id: Mapped[str | None] = mapped_column(String(64), nullable=True, index=True)
     status: Mapped[str] = mapped_column(String(24), nullable=False, default="queued", index=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now, nullable=False)
     started_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
