@@ -1,3 +1,11 @@
+import type { SolverOutput } from "../types";
+
+interface PostflopSummaryInput {
+  preflopBlocksPostflop: boolean;
+  solverOutput: Pick<SolverOutput, "postflop_error" | "postflop_status" | "street_results" | "summary">;
+  visibleBoardCardCount: number;
+}
+
 export function formatResultText(result: Record<string, unknown>) {
   const winner = typeof result.winner === "string" ? result.winner : "unknown";
   const reason = typeof result.reason === "string" ? result.reason : "";
@@ -22,6 +30,26 @@ export function formatResultText(result: Record<string, unknown>) {
     return "The hand reached showdown after the river action closed.";
   }
   return "The hand is complete.";
+}
+
+export function formatPostflopSummaryText(input: PostflopSummaryInput): string | null {
+  const { preflopBlocksPostflop, solverOutput, visibleBoardCardCount } = input;
+
+  if (solverOutput.postflop_status === "skipped") {
+    if (preflopBlocksPostflop) {
+      return "Postflop solver was not run because Hero chose a 0% preflop line.";
+    }
+    if (visibleBoardCardCount === 0) {
+      return "Postflop solver was not run because the hand ended before the flop.";
+    }
+    return "Postflop solver was not run for this hand.";
+  }
+
+  if (solverOutput.summary.largest_mistake === null) {
+    return "No large solver mistake flagged.";
+  }
+
+  return null;
 }
 
 function formatWinningReason(reason: string, foldedPlayer: "hero" | "opponent") {

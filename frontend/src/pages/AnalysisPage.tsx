@@ -1,12 +1,17 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 
 import { listAnalysis } from "../api";
 import type { AnalysisListItem } from "../types";
+import { analysisStatusCounts, analysisStatusOptions, filterAnalysisItems, type AnalysisStatusFilter } from "./analysisListFilters";
 
 export default function AnalysisPage() {
   const [items, setItems] = useState<AnalysisListItem[]>([]);
   const [error, setError] = useState<string | null>(null);
+  const [query, setQuery] = useState("");
+  const [statusFilter, setStatusFilter] = useState<AnalysisStatusFilter>("all");
+  const filteredItems = useMemo(() => filterAnalysisItems(items, { query, status: statusFilter }), [items, query, statusFilter]);
+  const statusCounts = useMemo(() => analysisStatusCounts(items), [items]);
 
   useEffect(() => {
     let cancelled = false;
@@ -42,6 +47,42 @@ export default function AnalysisPage() {
 
       {error && <p className="error-text">{error}</p>}
 
+      <div className="analysis-controls panel">
+        <label>
+          <span className="label">Search</span>
+          <input
+            onChange={(event) => setQuery(event.target.value)}
+            placeholder="Hand, cards, board"
+            type="search"
+            value={query}
+          />
+        </label>
+        <label>
+          <span className="label">Status</span>
+          <select onChange={(event) => setStatusFilter(event.target.value as AnalysisStatusFilter)} value={statusFilter}>
+            {analysisStatusOptions().map((status) => (
+              <option key={status} value={status}>
+                {statusLabel(status)} ({statusCounts[status]})
+              </option>
+            ))}
+          </select>
+        </label>
+      </div>
+
+      <div className="summary-grid analysis-counts">
+        {analysisStatusOptions().map((status) => (
+          <button
+            className={statusFilter === status ? "active secondary" : "secondary"}
+            key={status}
+            onClick={() => setStatusFilter(status)}
+            type="button"
+          >
+            <span>{statusLabel(status)}</span>
+            <strong>{statusCounts[status]}</strong>
+          </button>
+        ))}
+      </div>
+
       <div className="table-wrap">
         <table>
           <thead>
@@ -55,7 +96,7 @@ export default function AnalysisPage() {
             </tr>
           </thead>
           <tbody>
-            {items.map((item) => (
+            {filteredItems.map((item) => (
               <tr key={item.job_id}>
                 <td>#{item.hand_id}</td>
                 <td>{new Date(item.created_at).toLocaleString()}</td>
@@ -75,7 +116,15 @@ export default function AnalysisPage() {
             ))}
           </tbody>
         </table>
+        {filteredItems.length === 0 && <p className="empty-table-message">No analysis jobs match the current filters.</p>}
       </div>
     </section>
   );
+}
+
+function statusLabel(status: AnalysisStatusFilter) {
+  if (status === "all") {
+    return "All";
+  }
+  return status[0].toUpperCase() + status.slice(1);
 }

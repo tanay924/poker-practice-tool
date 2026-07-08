@@ -185,6 +185,22 @@ const baseState: TrainerState = {
 
 {
   const hand = startNewHand({
+    heroCards: ["Ad", "Td"],
+    villainCards: ["Jc", "4d"],
+    board: ["8c", "Th", "6d", "4c", "Qd"],
+    rng: fixedRng([0.99])
+  });
+  const folded = choose(hand, "raise");
+
+  assert.equal(folded.handOver, true);
+  assert.equal(folded.result?.winner, "hero");
+  assert.equal(folded.result?.reason, "villain_folded_preflop");
+  assert.equal(folded.message, "Hero wins. Opponent folded preflop.");
+  assert.deepEqual(folded.visibleBoard, []);
+}
+
+{
+  const hand = startNewHand({
     heroCards: ["As", "Ah"],
     villainCards: ["Kc", "9c"],
     board: ["2d", "7h", "Jc", "4s", "Td"],

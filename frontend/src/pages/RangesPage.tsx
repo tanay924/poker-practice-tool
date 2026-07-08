@@ -1,4 +1,4 @@
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 
 import type { PreflopAction } from "../preflop/engine";
 import { listBundledPreflopRanges, type BundledPreflopRange } from "../preflop/rangeData";
@@ -11,11 +11,15 @@ import {
   segmentSummary,
   type RangeActionSegment
 } from "../preflop/rangeMatrix";
+import { rangeTabItems, selectedRangeForSpot } from "./rangeStudyNavigation";
 
 const ACTION_ORDER: PreflopAction[] = ["fold", "check", "limp", "call", "raise", "allin"];
 
 export default function RangesPage() {
   const ranges = useMemo(() => listBundledPreflopRanges(), []);
+  const tabs = useMemo(() => rangeTabItems(ranges), [ranges]);
+  const [selectedSpot, setSelectedSpot] = useState<string>(() => ranges[0]?.spot ?? "");
+  const selectedRange = selectedRangeForSpot(ranges, selectedSpot);
 
   return (
     <section className="stack range-study-page">
@@ -36,10 +40,24 @@ export default function RangesPage() {
         })}
       </div>
 
-      <div className="range-table-stack">
-        {ranges.map((range) => (
-          <RangeChart key={range.spot} range={range} />
+      <div className="range-tabs panel" role="tablist" aria-label="Range spot">
+        {tabs.map((tab) => (
+          <button
+            aria-selected={selectedRange?.spot === tab.spot}
+            className={selectedRange?.spot === tab.spot ? "active secondary" : "secondary"}
+            key={tab.spot}
+            onClick={() => setSelectedSpot(tab.spot)}
+            role="tab"
+            type="button"
+          >
+            <span>{tab.title}</span>
+            <small>{tab.stackBb}bb</small>
+          </button>
         ))}
+      </div>
+
+      <div className="range-table-stack">
+        {selectedRange && <RangeChart key={selectedRange.spot} range={selectedRange} />}
       </div>
     </section>
   );

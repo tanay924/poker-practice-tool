@@ -2,6 +2,7 @@ from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 
 from app.analysis.service import create_analysis_job, process_next_analysis_job
+from app.api.analysis import list_analysis
 from app.db import Base
 from app.models import AnalysisJob, Hand
 
@@ -150,3 +151,55 @@ def test_blank_solver_exception_records_exception_type() -> None:
     assert job is not None
     assert job.status == "failed"
     assert job.error == "AssertionError"
+
+
+def test_analysis_list_only_includes_revealed_board_cards() -> None:
+    engine = create_engine("sqlite:///:memory:", connect_args={"check_same_thread": False})
+    TestingSession = sessionmaker(bind=engine, autoflush=False, autocommit=False)
+    Base.metadata.create_all(bind=engine)
+
+    with TestingSession() as db:
+        preflop_hand = Hand(
+            hero_position="SB",
+            villain_position="BB",
+            hero_cards="AdTd",
+            villain_cards="Jc4d",
+            board_json=["8c", "Th", "6d", "4c", "Qd"],
+            stack_bb=100,
+            pot=2.5,
+            action_history_json=[
+                {
+                    "street": "preflop",
+                    "actor": "SB",
+                    "action": "raise",
+                    "amount_bb": 2.5,
+                    "pot_after": 2.5,
+                    "node": "SB preflop decision",
+                },
+                {
+                    "street": "preflop",
+                    "actor": "BB",
+                    "action": "fold",
+                    "amount_bb": 0,
+                    "pot_after": 2.5,
+                    "node": "BB versus SB open",
+                },
+            ],
+            result_json={"winner": "hero", "reason": "villain_folded_preflop"},
+        )
+        flop_hand = make_integrated_hand()
+        db.add_all([preflop_hand, flop_hand])
+        db.commit()
+        db.refresh(preflop_hand)
+        db.refresh(flop_hand)
+        db.add_all([
+            AnalysisJob(hand_id=preflop_hand.id, status="ready"),
+            AnalysisJob(hand_id=flop_hand.id, status="ready"),
+        ])
+        db.commit()
+
+        rows = list_analysis(db)
+
+    boards_by_hand_id = {row.hand_id: row.board for row in rows}
+    assert boards_by_hand_id[preflop_hand.id] == []
+    assert boards_by_hand_id[flop_hand.id] == ["Ks", "7d", "2c"]

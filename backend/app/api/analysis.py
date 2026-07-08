@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from typing import Any
+
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
@@ -10,6 +12,13 @@ from app.models import AnalysisJob, Hand
 from app.schemas import AnalysisDetail, AnalysisJobRead, AnalysisListItem, HandRead
 
 router = APIRouter(prefix="/api/analysis", tags=["analysis"])
+
+BOARD_CARDS_BY_STREET = {
+    "preflop": 0,
+    "flop": 3,
+    "turn": 4,
+    "river": 5,
+}
 
 
 @router.get("", response_model=list[AnalysisListItem])
@@ -27,7 +36,7 @@ def list_analysis(db: Session = Depends(get_db)) -> list[AnalysisListItem]:
             hand_id=hand.id,
             created_at=job.created_at,
             hero_hand=hand.hero_cards,
-            board=hand.board_json,
+            board=visible_board_for_history(hand.board_json, hand.action_history_json),
             status=job.status,
             error=job.error,
         )
@@ -62,3 +71,10 @@ def get_analysis(hand_id: int, db: Session = Depends(get_db)) -> AnalysisDetail:
         hand=HandRead.model_validate(hand),
         job=job_read,
     )
+
+
+def visible_board_for_history(board: list[str], action_history: list[dict[str, Any]]) -> list[str]:
+    visible_card_count = 0
+    for entry in action_history:
+        visible_card_count = max(visible_card_count, BOARD_CARDS_BY_STREET.get(str(entry.get("street")), 0))
+    return board[:visible_card_count]

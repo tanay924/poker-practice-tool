@@ -9,7 +9,7 @@ import { applyHeroAction, formatActionEntry, legalHeroActions, startNewHand, toH
 import { settlementForTrainerState } from "../poker/settlement";
 import { shouldRevealOpponentCards } from "../poker/visibility";
 import { formatBb } from "../settlement";
-import { analysisControlFor } from "./playAnalysisControl";
+import { analysisControlFor, nextPlayAnalysisStateAfterAnalyzeSuccess, nextPlayAnalysisStateAfterRefresh } from "./playAnalysisControl";
 
 const SEAT_MODE_STORAGE_KEY = "poker-trainer-seat-mode";
 const SEAT_MODES: SeatMode[] = ["random", "SB", "BB"];
@@ -59,7 +59,9 @@ export default function PlayPage() {
       getAnalysis(savedHand.id)
         .then((detail) => {
           if (!cancelled) {
-            setAnalysisJob(detail.job);
+            const next = nextPlayAnalysisStateAfterRefresh({ analysisJob: null, error: null }, detail);
+            setAnalysisJob(next.analysisJob);
+            setError(next.error);
           }
         })
         .catch(() => undefined);
@@ -90,8 +92,13 @@ export default function PlayPage() {
     if (!savedHand) {
       return;
     }
+    setError(null);
     analyzeHand(savedHand.id)
-      .then(setAnalysisJob)
+      .then((job) => {
+        const next = nextPlayAnalysisStateAfterAnalyzeSuccess({ analysisJob: null, error: null }, job);
+        setAnalysisJob(next.analysisJob);
+        setError(next.error);
+      })
       .catch((err: Error) => setError(err.message));
   };
 

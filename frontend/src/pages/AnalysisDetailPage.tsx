@@ -7,7 +7,7 @@ import { formatActionEntry } from "../poker/engine";
 import { visibleBoardForHistory } from "../poker/visibility";
 import type { AnalysisDetail, DecisionDetails, EquityDetails, PotOddsDetails } from "../types";
 import { decisionDetailsAvailable, formatDetailBb, formatDetailPercent } from "./analysisDecisionDetails";
-import { formatResultText } from "./analysisResultText";
+import { formatPostflopSummaryText, formatResultText } from "./analysisResultText";
 import { shouldRevealAnalysisOpponentCards } from "./analysisVisibility";
 
 export default function AnalysisDetailPage() {
@@ -45,6 +45,14 @@ export default function AnalysisDetailPage() {
   const visibleBoard = visibleBoardForHistory(detail.hand.board_json, detail.hand.action_history_json);
   const revealOpponentCards = shouldRevealAnalysisOpponentCards(detail.hand.result_json);
   const resultText = formatResultText(detail.hand.result_json);
+  const postflopSummaryText = solverOutput
+    ? formatPostflopSummaryText({
+        preflopBlocksPostflop,
+        solverOutput,
+        visibleBoardCardCount: visibleBoard.length
+      })
+    : null;
+  const showSolverMetadata = Boolean(solverOutput?.metadata && solverOutput.postflop_status !== "skipped");
 
   return (
     <section className="stack">
@@ -150,15 +158,15 @@ export default function AnalysisDetailPage() {
             </strong>
           </div>
         )}
-        {solverOutput?.summary.largest_mistake === null && <p className="muted-text">No large solver mistake flagged.</p>}
-        {solverOutput?.metadata && (
+        {postflopSummaryText && <p className="muted-text">{postflopSummaryText}</p>}
+        {showSolverMetadata && solverOutput?.metadata && (
           <p className="muted-text">
             Source: {solverLabel}
             {typeof solverOutput.metadata.duration_seconds === "number" ? ` - ${solverOutput.metadata.duration_seconds.toFixed(2)}s` : ""}
             {solverOutput.metadata.cache ? ` - cache ${solverOutput.metadata.cache.hit ? "hit" : "miss"}` : ""}
           </p>
         )}
-        {solverOutput?.postflop_status && solverOutput.postflop_status !== "ready" && (
+        {solverOutput?.postflop_status && !["ready", "skipped"].includes(solverOutput.postflop_status) && (
           <p className="muted-text">
             Postflop status: {solverOutput.postflop_status}
             {solverOutput.postflop_error ? ` - ${solverOutput.postflop_error}` : ""}

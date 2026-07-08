@@ -320,7 +320,10 @@ function advanceAfterHeroSbOpen(state: TrainerState, action: PreflopAction): Tra
         message: "BB 3-bets to 11.5bb. SB decision."
       };
     }
-    return finishHand(afterBbAction, "villain", bbAction === "allin" ? "bb_allin_preflop" : "bb_folded_preflop");
+    if (bbAction === "allin") {
+      return finishHand(afterBbAction, "villain", "bb_allin_preflop");
+    }
+    return finishHand(afterBbAction, "hero", "villain_folded_preflop");
   }
 
   return finishHand(state, "showdown", "preflop_tree_closed");

@@ -8,6 +8,7 @@
     "build": "tsc -b && vite build",
     "preview": "vite preview",
     "test:analysis-detail": "tsx src/pages/AnalysisDetailPage.test.ts && tsx src/pages/analysisDecisionDetails.test.ts && tsx src/pages/analysisVisibility.test.ts",
+    "test:study-pages": "tsx src/pages/AnalysisPage.test.ts && tsx src/pages/RangesPage.test.ts && tsx src/pages/AnalysisDetailPage.test.ts && tsx src/pages/analysisDecisionDetails.test.ts && tsx src/pages/analysisVisibility.test.ts",
     "test:cards": "tsx src/components/PlayingCard.test.ts",
     "test:play-page": "tsx src/pages/PlayPage.test.ts",
     "test:poker": "tsx src/poker/handEvaluator.test.ts && tsx src/poker/engine.test.ts",

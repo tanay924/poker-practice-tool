@@ -57,7 +57,8 @@ body {
 }
 
 button,
-input {
+input,
+select {
   font: inherit;
 }
 
@@ -1042,6 +1043,60 @@ button.compact-button,
   overflow-x: auto;
 }
 
+.analysis-controls {
+  align-items: end;
+  display: grid;
+  gap: 12px;
+  grid-template-columns: minmax(220px, 1fr) minmax(170px, 240px);
+}
+
+.analysis-controls label {
+  display: grid;
+  gap: 6px;
+}
+
+.analysis-controls input,
+.analysis-controls select {
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  color: var(--text);
+  min-height: 42px;
+  padding: 9px 11px;
+}
+
+.analysis-controls option {
+  background: #17201b;
+  color: var(--text);
+}
+
+.analysis-counts button {
+  align-items: center;
+  display: flex;
+  justify-content: space-between;
+  text-align: left;
+}
+
+.analysis-counts button.active {
+  border-color: rgba(240, 201, 106, 0.42);
+  color: #ffe6a6;
+}
+
+.analysis-counts span {
+  color: var(--muted-strong);
+}
+
+.analysis-counts strong {
+  color: var(--text);
+}
+
+.empty-table-message {
+  color: var(--muted);
+  font-weight: 800;
+  margin: 0;
+  padding: 18px;
+}
+
 table {
   border-collapse: collapse;
   min-width: 760px;
@@ -1296,6 +1351,35 @@ td {
   gap: 14px;
 }
 
+.range-tabs {
+  display: grid;
+  gap: 10px;
+  grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+}
+
+.range-tabs button {
+  align-items: flex-start;
+  display: grid;
+  gap: 4px;
+  justify-content: stretch;
+  text-align: left;
+}
+
+.range-tabs button.active {
+  background: linear-gradient(180deg, rgba(53, 196, 127, 0.22), rgba(53, 196, 127, 0.09));
+  border-color: rgba(53, 196, 127, 0.48);
+  color: var(--text);
+}
+
+.range-tabs span {
+  font-weight: 950;
+}
+
+.range-tabs small {
+  color: var(--muted-strong);
+  font-weight: 850;
+}
+
 .range-header {
   align-items: flex-start;
   display: flex;
@@ -1512,6 +1596,10 @@ td {
   }
 
   .strategy-row {
+    grid-template-columns: 1fr;
+  }
+
+  .analysis-controls {
     grid-template-columns: 1fr;
   }
 
