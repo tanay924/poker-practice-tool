@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 
 import { analyzeHand, getAnalysis, saveHand } from "../api";
@@ -10,6 +10,7 @@ import { settlementForTrainerState } from "../poker/settlement";
 import { shouldRevealOpponentCards } from "../poker/visibility";
 import { formatBb } from "../settlement";
 import { analysisControlFor, nextPlayAnalysisStateAfterAnalyzeSuccess, nextPlayAnalysisStateAfterRefresh } from "./playAnalysisControl";
+import { playShortcutForAction, resolvePlayShortcut } from "./playActionShortcuts";
 
 const SEAT_MODE_STORAGE_KEY = "poker-trainer-seat-mode";
 const SEAT_MODES: SeatMode[] = ["random", "SB", "BB"];
@@ -25,6 +26,10 @@ export default function PlayPage() {
   const [error, setError] = useState<string | null>(null);
 
   const legalActions = useMemo(() => legalHeroActions(hand), [hand]);
+  const actionShortcuts = useMemo(
+    () => legalActions.map((action, index) => playShortcutForAction(action, index, legalActions)),
+    [legalActions]
+  );
   const analysisControl = analysisControlFor(savedHand, analysisJob);
   const settlement = useMemo(() => settlementForTrainerState(hand), [hand]);
   const revealVillainCards = shouldRevealOpponentCards(hand.result);
@@ -75,18 +80,41 @@ export default function PlayPage() {
     };
   }, [savedHand]);
 
-  const act = (action: TrainerAction) => {
+  const act = useCallback((action: TrainerAction) => {
     setHand((current) => applyHeroAction(current, action));
-  };
+  }, []);
 
-  const newHand = () => {
+  const newHand = useCallback(() => {
     setHand(startNewHand({ seatMode }));
     setSavedHand(null);
     setAnalysisJob(null);
     setSaveAttempted(false);
     setSaving(false);
     setError(null);
-  };
+  }, [seatMode]);
+
+  useEffect(() => {
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.defaultPrevented || event.altKey || event.ctrlKey || event.metaKey || shortcutTargetIsEditable(event.target)) {
+        return;
+      }
+
+      if (hand.handOver && event.key.toLowerCase() === "n") {
+        event.preventDefault();
+        newHand();
+        return;
+      }
+
+      const shortcutAction = resolvePlayShortcut(event.key, legalActions);
+      if (shortcutAction) {
+        event.preventDefault();
+        act(shortcutAction);
+      }
+    };
+
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [act, hand.handOver, legalActions, newHand]);
 
   const requestAnalysis = () => {
     if (!savedHand) {
@@ -165,10 +193,12 @@ export default function PlayPage() {
         </div>
 
         <div className="action-buttons">
-          {legalActions.map((action) => (
+          {legalActions.map((action, index) => (
             <button
+              aria-keyshortcuts={actionShortcuts[index]?.aria}
               className={actionButtonClass(action.action)}
               key={`${action.action}-${action.amountBb}-${action.targetAmountBb ?? ""}`}
+              title={`${action.label} (${actionShortcuts[index]?.label})`}
               type="button"
               onClick={() => act(action)}
             >
@@ -176,7 +206,7 @@ export default function PlayPage() {
             </button>
           ))}
           {hand.handOver && (
-            <button type="button" className="secondary" onClick={newHand}>
+            <button type="button" className="secondary" onClick={newHand} title="New hand (N)" aria-keyshortcuts="n">
               New hand
             </button>
           )}
@@ -233,6 +263,14 @@ function readSeatMode(): SeatMode {
 
 function writeSeatMode(mode: SeatMode) {
   window.localStorage.setItem(SEAT_MODE_STORAGE_KEY, mode);
+}
+
+function shortcutTargetIsEditable(target: EventTarget | null): boolean {
+  if (!(target instanceof HTMLElement)) {
+    return false;
+  }
+  const tagName = target.tagName.toLowerCase();
+  return target.isContentEditable || tagName === "input" || tagName === "select" || tagName === "textarea";
 }
 
 function actionButtonClass(action: TrainerAction["action"]) {

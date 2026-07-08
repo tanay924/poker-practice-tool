@@ -42,7 +42,7 @@ const baseState: TrainerState = {
   const actions = legalHeroActions(baseState);
   assert.deepEqual(
     actions.map((action) => action.label),
-    ["Check", "Bet 2bb", "Bet 5bb"],
+    ["Check", "Bet 50% (2bb)", "Bet 100% (5bb)"],
   );
   assert.deepEqual(
     actions.map((action) => action.action),
@@ -123,7 +123,7 @@ const baseState: TrainerState = {
   assert.equal(postflop.actionHistory.at(-1)?.automatic, false);
   assert.deepEqual(
     legalHeroActions(postflop).map((action) => action.label),
-    ["Check", "Bet 2bb", "Bet 5bb"],
+    ["Check", "Bet 50% (2bb)", "Bet 100% (5bb)"],
   );
 
   const payload = toHandPayload(postflop);
@@ -243,7 +243,21 @@ const baseState: TrainerState = {
 
   assert.deepEqual(
     actions.map((action) => action.label),
-    ["Check", "Bet 1bb", "Bet 2bb"],
+    ["Check", "Bet 50% (1bb)", "Bet 100% (2bb)"],
+  );
+}
+
+{
+  const hand = startNewHand({
+    heroCards: ["As", "Ah"],
+    villainCards: ["Kc", "9c"],
+    board: ["2d", "7h", "Jc", "4s", "Td"],
+    rng: fixedRng([0.5])
+  });
+
+  assert.deepEqual(
+    legalHeroActions(hand).map((action) => action.label),
+    ["Fold", "Limp", "Raise to 2.5bb"],
   );
 }
 
