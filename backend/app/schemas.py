@@ -179,3 +179,28 @@ class StatsRead(BaseModel):
     postflop_by_situation: list[StatsMistakeRow]
     recent: StatsRecent
     recommendations: list[StudyRecommendation]
+
+
+class StudySpotRead(BaseModel):
+    street: str
+    node: str
+    hero_hand: str
+    board: list[str]
+    line: list[str]
+    tags: list[str]
+    hero_action: str
+    best_action: str
+    verdict: str
+    confidence: str | None = None
+    solver_strategy: dict[str, float]
+
+
+class StudySpotSourceRead(BaseModel):
+    street: str
+    node: str
+    tags: list[str]
+
+
+class SimilarStudySpotsRead(BaseModel):
+    source: StudySpotSourceRead
+    spots: list[StudySpotRead]

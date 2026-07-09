@@ -120,3 +120,21 @@ class SharedHand(Base):
     read_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
     hand: Mapped[Hand] = relationship()
+
+
+class StudySpot(Base):
+    __tablename__ = "study_spots"
+    __table_args__ = (UniqueConstraint("source_job_id", "spot_key", name="uq_study_spot_source_key"),)
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
+    source_job_id: Mapped[int] = mapped_column(ForeignKey("analysis_jobs.id"), nullable=False, index=True)
+    source_hand_id: Mapped[int] = mapped_column(ForeignKey("hands.id"), nullable=False, index=True)
+    spot_key: Mapped[str] = mapped_column(String(180), nullable=False)
+    street: Mapped[str] = mapped_column(String(16), nullable=False, index=True)
+    node: Mapped[str] = mapped_column(String(240), nullable=False)
+    hero_hand: Mapped[str] = mapped_column(String(8), nullable=False)
+    board_json: Mapped[list[str]] = mapped_column(JSON, nullable=False)
+    line_json: Mapped[list[str]] = mapped_column(JSON, nullable=False)
+    tags_json: Mapped[list[str]] = mapped_column(JSON, nullable=False)
+    solver_json: Mapped[dict[str, Any]] = mapped_column(JSON, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now, nullable=False)

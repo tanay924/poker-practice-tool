@@ -238,6 +238,31 @@ export interface MyStats {
   recommendations: StudyRecommendation[];
 }
 
+export interface StudySpotRead {
+  street: string;
+  node: string;
+  hero_hand: string;
+  board: string[];
+  line: string[];
+  tags: string[];
+  hero_action: string;
+  best_action: string;
+  verdict: string;
+  confidence: string | null;
+  solver_strategy: Record<string, number>;
+}
+
+export interface StudySpotSourceRead {
+  street: string;
+  node: string;
+  tags: string[];
+}
+
+export interface SimilarStudySpots {
+  source: StudySpotSourceRead;
+  spots: StudySpotRead[];
+}
+
 export interface PreflopRange {
   id: number;
   name: string;

@@ -1607,6 +1607,81 @@ td {
   margin-top: 12px;
 }
 
+.study-like-row {
+  border-top: 1px solid var(--line);
+  display: flex;
+  justify-content: flex-start;
+  margin-top: 14px;
+  padding-top: 12px;
+}
+
+.similar-spots-panel {
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  display: grid;
+  gap: 12px;
+  margin-top: 12px;
+  padding: 12px;
+}
+
+.similar-spots-heading p {
+  color: var(--muted-strong);
+  font-size: 0.86rem;
+  font-weight: 800;
+  margin: 0;
+}
+
+.similar-spot-list {
+  display: grid;
+  gap: 10px;
+}
+
+.similar-spot-card {
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  display: grid;
+  gap: 9px;
+  padding: 12px;
+}
+
+.similar-spot-card h5 {
+  color: var(--text);
+  font-size: 0.96rem;
+  margin: 7px 0 4px;
+}
+
+.similar-spot-card p {
+  margin: 0;
+}
+
+.similar-spot-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.similar-spot-tags span {
+  background: rgba(216, 166, 66, 0.1);
+  border: 1px solid rgba(216, 166, 66, 0.22);
+  border-radius: 999px;
+  color: var(--amber-soft);
+  font-size: 0.72rem;
+  font-weight: 900;
+  padding: 4px 8px;
+}
+
+.similar-spot-line {
+  border-top: 1px solid var(--line);
+  color: var(--muted-strong);
+  display: grid;
+  font-size: 0.82rem;
+  gap: 5px;
+  margin: 0;
+  padding: 9px 0 0 18px;
+}
+
 .detail-card {
   background: rgba(255, 255, 255, 0.04);
   border: 1px solid var(--line);

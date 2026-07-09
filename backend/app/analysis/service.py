@@ -19,6 +19,7 @@ from app.ranges.resolver import resolve_hu_srp_ranges
 from app.solver.adapters import SolverAdapter
 from app.solver.errors import SolverExecutionError, UnsupportedAnalysisError
 from app.solver.factory import create_solver_from_env
+from app.study_spots import upsert_study_spots_for_job
 
 
 MAX_ACTIVE_ANALYSIS_JOBS_PER_USER = 5
@@ -234,6 +235,7 @@ async def process_next_analysis_job(
         job.solver_output_json = solver_output
         job.status = "ready"
         job.finished_at = utc_now()
+        upsert_study_spots_for_job(db, hand, job, commit=False)
         db.commit()
         db.refresh(job)
         return job

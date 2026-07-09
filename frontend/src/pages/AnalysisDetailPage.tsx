@@ -1,16 +1,23 @@
 import { useEffect, useState, type FormEvent } from "react";
 import { Link, useParams, useSearchParams } from "react-router-dom";
 
-import { getAnalysis, shareHand } from "../api";
+import { getAnalysis, listSimilarStudySpots, shareHand } from "../api";
 import { useAuth } from "../auth/AuthContext";
 import PlayingCard from "../components/PlayingCard";
 import { getOrCreateGuestSessionId } from "../guestTrial";
 import { formatActionEntry } from "../poker/engine";
 import { visibleBoardForHistory } from "../poker/visibility";
-import type { AnalysisDetail, DecisionDetails, EquityDetails, PotOddsDetails } from "../types";
+import type { AnalysisDetail, DecisionDetails, EquityDetails, PotOddsDetails, SimilarStudySpots, SolverStreetResult, StudySpotRead } from "../types";
 import { decisionDetailsAvailable, formatDetailBb, formatDetailPercent } from "./analysisDecisionDetails";
 import { formatPostflopSummaryText, formatResultText } from "./analysisResultText";
 import { shouldRevealAnalysisOpponentCards } from "./analysisVisibility";
+import { formatSpotTags, formatStrategySummary } from "./studySpotViews";
+
+interface SimilarSpotState {
+  error: string | null;
+  loading: boolean;
+  result: SimilarStudySpots | null;
+}
 
 export default function AnalysisDetailPage() {
   const { handId } = useParams();
@@ -22,6 +29,7 @@ export default function AnalysisDetailPage() {
   const [shareMessage, setShareMessage] = useState<string | null>(null);
   const [shareError, setShareError] = useState<string | null>(null);
   const [sharing, setSharing] = useState(false);
+  const [similarSpotsByKey, setSimilarSpotsByKey] = useState<Record<string, SimilarSpotState>>({});
   const viewingSharedHand = searchParams.get("shared") === "1";
 
   useEffect(() => {
@@ -84,6 +92,27 @@ export default function AnalysisDetailPage() {
     } finally {
       setSharing(false);
     }
+  };
+  const loadSimilarSpots = (result: SolverStreetResult, index: number) => {
+    const key = similarSpotKey(result, index);
+    setSimilarSpotsByKey((current) => ({
+      ...current,
+      [key]: { error: null, loading: true, result: current[key]?.result ?? null }
+    }));
+    const auth = accessToken ? accessToken : { guestSessionId: getOrCreateGuestSessionId() };
+    listSimilarStudySpots({ handId: detail.hand.id, node: result.node, street: result.street }, auth)
+      .then((next) => {
+        setSimilarSpotsByKey((current) => ({
+          ...current,
+          [key]: { error: null, loading: false, result: next }
+        }));
+      })
+      .catch((err: Error) => {
+        setSimilarSpotsByKey((current) => ({
+          ...current,
+          [key]: { error: err.message, loading: false, result: null }
+        }));
+      });
   };
 
   return (
@@ -241,7 +270,10 @@ export default function AnalysisDetailPage() {
         )}
 
         <div className="decision-list">
-          {solverOutput?.street_results.map((result, index) => (
+          {solverOutput?.street_results.map((result, index) => {
+            const similarKey = similarSpotKey(result, index);
+            const similarState = similarSpotsByKey[similarKey] ?? { error: null, loading: false, result: null };
+            return (
             <article className="decision" key={`${result.street}-${index}`}>
               <div>
                 <span className="status-pill">{result.street}</span>
@@ -262,8 +294,15 @@ export default function AnalysisDetailPage() {
                 <strong>{result.verdict}</strong> ({result.confidence} confidence).
               </p>
               <DecisionDetailsPanel details={result.details} />
+              <div className="study-like-row">
+                <button className="secondary compact-button" disabled={similarState.loading} onClick={() => loadSimilarSpots(result, index)} type="button">
+                  {similarState.loading ? "Finding spots..." : "Study hands like this"}
+                </button>
+              </div>
+              <SimilarStudySpotsPanel state={similarState} />
             </article>
-          ))}
+            );
+          })}
         </div>
       </section>
 
@@ -279,6 +318,10 @@ export default function AnalysisDetailPage() {
       </section>
     </section>
   );
+}
+
+function similarSpotKey(result: SolverStreetResult, index: number) {
+  return `${result.street}-${result.node}-${index}`;
 }
 
 function formatSolverLabel(solver: { name: string; version?: string; commit?: string }) {
@@ -366,5 +409,55 @@ function EquityCard({ equity }: { equity?: EquityDetails }) {
       <p>Opponent {formatDetailPercent(equity.villain)}</p>
       {typeof equity.total_runouts === "number" && <p>{equity.total_runouts} runouts calculated.</p>}
     </div>
+  );
+}
+
+function SimilarStudySpotsPanel({ state }: { state: SimilarSpotState }) {
+  if (state.error) {
+    return <p className="error-text">{state.error}</p>;
+  }
+  if (!state.result) {
+    return null;
+  }
+  if (state.result.spots.length === 0) {
+    return <p className="muted-text">No matching solved spots in the global bank yet.</p>;
+  }
+  return (
+    <div className="similar-spots-panel">
+      <div className="similar-spots-heading">
+        <span className="label">Anonymized solved spots</span>
+        <p>{formatSpotTags(state.result.source.tags).slice(0, 4).join(" / ")}</p>
+      </div>
+      <div className="similar-spot-list">
+        {state.result.spots.map((spot, index) => (
+          <SimilarStudySpotCard key={`${spot.street}-${spot.node}-${spot.hero_hand}-${index}`} spot={spot} />
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function SimilarStudySpotCard({ spot }: { spot: StudySpotRead }) {
+  return (
+    <article className="similar-spot-card">
+      <div>
+        <span className="status-pill">{spot.street}</span>
+        <h5>{spot.node}</h5>
+        <p>{spot.board.length > 0 ? spot.board.join(" ") : "Preflop"} / Hero {spot.hero_hand}</p>
+      </div>
+      <div className="similar-spot-tags">
+        {formatSpotTags(spot.tags).slice(0, 5).map((tag) => <span key={tag}>{tag}</span>)}
+      </div>
+      <p>
+        Hero chose <strong>{spot.hero_action}</strong>. Solver prefers <strong>{spot.best_action}</strong>
+        {spot.confidence ? ` (${spot.confidence} confidence).` : "."}
+      </p>
+      <p className="muted-text">{formatStrategySummary(spot.solver_strategy)}</p>
+      {spot.line.length > 0 && (
+        <ol className="similar-spot-line">
+          {spot.line.map((entry, index) => <li key={`${entry}-${index}`}>{entry}</li>)}
+        </ol>
+      )}
+    </article>
   );
 }

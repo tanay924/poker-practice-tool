@@ -10,6 +10,7 @@ import type {
   NotificationCounts,
   PreflopRange,
   ProfileRead,
+  SimilarStudySpots,
   SharedHandRead
 } from "./types";
 
@@ -117,6 +118,20 @@ export function markSharedHandRead(shareId: number, accessToken?: string | null)
 
 export function getMyStats(accessToken?: string | null): Promise<MyStats> {
   return request<MyStats>("/api/stats/me", {}, accessToken);
+}
+
+export function listSimilarStudySpots(
+  params: { handId: number; node?: string; street: string },
+  auth?: string | null | ApiAuthContext
+): Promise<SimilarStudySpots> {
+  const query = new URLSearchParams({
+    hand_id: String(params.handId),
+    street: params.street
+  });
+  if (params.node) {
+    query.set("node", params.node);
+  }
+  return request<SimilarStudySpots>(`/api/study-spots/similar?${query.toString()}`, {}, auth);
 }
 
 export function importRange(payload: unknown, accessToken?: string | null): Promise<PreflopRange> {
