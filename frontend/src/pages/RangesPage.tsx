@@ -11,6 +11,7 @@ import {
   segmentSummary,
   type RangeActionSegment
 } from "../preflop/rangeMatrix";
+import { rangePageIntro } from "./beginnerUx";
 import { rangeTabItems, selectedRangeForSpot } from "./rangeStudyNavigation";
 
 const ACTION_ORDER: PreflopAction[] = ["fold", "check", "limp", "call", "raise", "allin"];
@@ -20,12 +21,14 @@ export default function RangesPage() {
   const tabs = useMemo(() => rangeTabItems(ranges), [ranges]);
   const [selectedSpot, setSelectedSpot] = useState<string>(() => ranges[0]?.spot ?? "");
   const selectedRange = selectedRangeForSpot(ranges, selectedSpot);
+  const intro = rangePageIntro();
 
   return (
     <section className="stack range-study-page">
       <div className="page-heading">
-        <p className="eyebrow">Bundled 100bb HU cash ranges</p>
-        <h2>Ranges</h2>
+        <p className="eyebrow">{intro.eyebrow}</p>
+        <h2>{intro.title}</h2>
+        <p className="page-subtitle">{intro.subtitle}</p>
       </div>
 
       <div className="range-legend panel">

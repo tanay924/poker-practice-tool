@@ -11,6 +11,7 @@ import { applyHeroAction, formatActionEntry, legalHeroActions, startNewHand, toH
 import { settlementForTrainerState } from "../poker/settlement";
 import { shouldRevealOpponentCards } from "../poker/visibility";
 import { formatBb } from "../settlement";
+import { playGuideSteps } from "./beginnerUx";
 import { analysisControlFor, nextPlayAnalysisStateAfterAnalyzeSuccess, nextPlayAnalysisStateAfterRefresh } from "./playAnalysisControl";
 import { playShortcutForAction, resolvePlayShortcut } from "./playActionShortcuts";
 import { playCompletionMessage, playCompletionPrimaryAction } from "./playCompletionCopy";
@@ -198,6 +199,16 @@ export default function PlayPage() {
       </div>
 
       <aside className="control-panel">
+        <div className="play-guide" aria-label="Play flow">
+          {playGuideSteps().map((step, index) => (
+            <div key={step.title}>
+              <span>{index + 1}</span>
+              <strong>{step.title}</strong>
+              <p>{step.detail}</p>
+            </div>
+          ))}
+        </div>
+
         <div className="seat-mode-control">
           <span className="label">Seat</span>
           <div className="segmented-control" role="group" aria-label="Seat mode">

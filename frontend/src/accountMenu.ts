@@ -36,7 +36,8 @@ export function accountMenuModel(state: AccountMenuState): AccountMenuModel {
   }
 
   const items: AccountMenuItem[] = [
-    { label: "My library", to: "/analysis" }
+    { label: "My library", to: "/analysis" },
+    { label: "Customize", to: "/customize" }
   ];
 
   if (state.isAuthenticated) {

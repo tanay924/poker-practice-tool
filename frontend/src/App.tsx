@@ -5,11 +5,14 @@ import { getNotifications } from "./api";
 import { accountMenuModel, notificationTotal } from "./accountMenu";
 import { profileLabelFromUserMetadata } from "./auth/accountProfile";
 import { useAuth } from "./auth/AuthContext";
+import { applyThemeSelection, loadThemeSelection } from "./theme/customization";
 import type { NotificationCounts } from "./types";
 import AnalysisDetailPage from "./pages/AnalysisDetailPage";
 import AnalysisPage from "./pages/AnalysisPage";
 import AuthCallbackPage from "./pages/AuthCallbackPage";
 import AuthPage from "./pages/AuthPage";
+import { primaryNavigationItems } from "./pages/beginnerUx";
+import CustomizePage from "./pages/CustomizePage";
 import FriendsPage from "./pages/FriendsPage";
 import PlayPage from "./pages/PlayPage";
 import PreflopPracticePage from "./pages/PreflopPracticePage";
@@ -18,6 +21,10 @@ import SharedHandsPage from "./pages/SharedHandsPage";
 import StatsPage from "./pages/StatsPage";
 
 export default function App() {
+  useEffect(() => {
+    applyThemeSelection(document.documentElement, loadThemeSelection());
+  }, []);
+
   return (
     <div className="app-shell">
       <header className="topbar">
@@ -29,10 +36,9 @@ export default function App() {
           </div>
         </div>
         <nav className="nav-links" aria-label="Primary">
-          <NavLink to="/play">Play</NavLink>
-          <NavLink to="/preflop">Preflop</NavLink>
-          <NavLink to="/analysis">Analysis</NavLink>
-          <NavLink to="/ranges">Ranges</NavLink>
+          {primaryNavigationItems().map((item) => (
+            <NavLink key={item.to} to={item.to}>{item.label}</NavLink>
+          ))}
         </nav>
         <AccountControls />
       </header>
@@ -45,6 +51,7 @@ export default function App() {
           <Route path="/preflop" element={<PreflopPracticePage />} />
           <Route path="/analysis" element={<AnalysisPage />} />
           <Route path="/analysis/:handId" element={<AnalysisDetailPage />} />
+          <Route path="/customize" element={<CustomizePage />} />
           <Route path="/friends" element={<FriendsPage />} />
           <Route path="/ranges" element={<RangesPage />} />
           <Route path="/shared" element={<SharedHandsPage />} />

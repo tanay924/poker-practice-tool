@@ -6,6 +6,7 @@ import { useAuth } from "../auth/AuthContext";
 import { getOrCreateGuestSessionId } from "../guestTrial";
 import type { AnalysisListItem } from "../types";
 import { analysisStatusCounts, analysisStatusOptions, filterAnalysisItems, type AnalysisStatusFilter } from "./analysisListFilters";
+import { analysisEmptyState } from "./beginnerUx";
 
 export default function AnalysisPage() {
   const { accessToken, authConfigured, loading: authLoading, user } = useAuth();
@@ -15,6 +16,8 @@ export default function AnalysisPage() {
   const [statusFilter, setStatusFilter] = useState<AnalysisStatusFilter>("all");
   const filteredItems = useMemo(() => filterAnalysisItems(items, { query, status: statusFilter }), [items, query, statusFilter]);
   const statusCounts = useMemo(() => analysisStatusCounts(items), [items]);
+  const hasActiveFilters = query.trim().length > 0 || statusFilter !== "all";
+  const emptyState = analysisEmptyState({ hasItems: items.length > 0, hasQuery: hasActiveFilters });
 
   useEffect(() => {
     const auth = accessToken ? accessToken : { guestSessionId: getOrCreateGuestSessionId() };
@@ -49,8 +52,9 @@ export default function AnalysisPage() {
   return (
     <section className="stack">
       <div className="page-heading">
-        <p className="eyebrow">{user ? "Background solver jobs" : "Guest trial answer sheets"}</p>
-        <h2>Analysis</h2>
+        <p className="eyebrow">{user ? "Saved answer sheets" : "Guest trial answer sheets"}</p>
+        <h2>Hand Library</h2>
+        <p className="page-subtitle">Review completed hands, open answer sheets, and track solver jobs.</p>
       </div>
 
       {!user && (
@@ -134,7 +138,26 @@ export default function AnalysisPage() {
             ))}
           </tbody>
         </table>
-        {filteredItems.length === 0 && <p className="empty-table-message">No analysis jobs match the current filters.</p>}
+        {filteredItems.length === 0 && (
+          <div className="empty-state">
+            <h3>{emptyState.title}</h3>
+            <p>{emptyState.message}</p>
+            {emptyState.actionTo ? (
+              <Link className="button-link compact-button" to={emptyState.actionTo}>{emptyState.actionLabel}</Link>
+            ) : (
+              <button
+                className="secondary compact-button"
+                onClick={() => {
+                  setQuery("");
+                  setStatusFilter("all");
+                }}
+                type="button"
+              >
+                {emptyState.actionLabel}
+              </button>
+            )}
+          </div>
+        )}
       </div>
     </section>
   );
