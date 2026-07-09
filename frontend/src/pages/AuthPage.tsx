@@ -1,6 +1,7 @@
 import { FormEvent, useState } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
 
+import { validateUsername } from "../auth/accountProfile";
 import { useAuth } from "../auth/AuthContext";
 
 type AuthMode = "signin" | "signup";
@@ -10,6 +11,7 @@ export default function AuthPage() {
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
   const [mode, setMode] = useState<AuthMode>("signin");
+  const [username, setUsername] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
@@ -24,7 +26,12 @@ export default function AuthPage() {
     setSubmitting(true);
     try {
       if (mode === "signup") {
-        await signUp(email, password, `${window.location.origin}/auth/callback?redirect=${encodeURIComponent(redirectPath)}`);
+        const usernameError = validateUsername(username);
+        if (usernameError) {
+          setError(usernameError);
+          return;
+        }
+        await signUp(email, password, `${window.location.origin}/auth/callback?redirect=${encodeURIComponent(redirectPath)}`, username);
         setNotice("Check your email to finish creating your account.");
       } else {
         await signIn(email, password);
@@ -61,6 +68,21 @@ export default function AuthPage() {
               value={email}
             />
           </label>
+          {mode === "signup" && (
+            <label>
+              <span className="label">Username</span>
+              <input
+                autoComplete="username"
+                disabled={!authConfigured || submitting}
+                maxLength={24}
+                minLength={2}
+                onChange={(event) => setUsername(event.target.value)}
+                required
+                type="text"
+                value={username}
+              />
+            </label>
+          )}
           <label>
             <span className="label">Password</span>
             <input

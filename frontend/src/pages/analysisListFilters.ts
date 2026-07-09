@@ -52,5 +52,5 @@ function searchableText(item: AnalysisListItem): string {
 }
 
 function normalize(value: unknown): string {
-  return String(value).trim().toLowerCase();
+  return String(value).trim().toLowerCase().replace(/^#(?=\d)/, "");
 }

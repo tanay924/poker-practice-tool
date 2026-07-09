@@ -5,6 +5,7 @@ import { analyzeHand, getAnalysis, saveHand } from "../api";
 import { useAuth } from "../auth/AuthContext";
 import PlayingCard from "../components/PlayingCard";
 import SettlementSummaryPanel from "../components/SettlementSummaryPanel";
+import { getOrCreateGuestSessionId, guestTrialSnapshot, recordGuestTrialUse, type GuestTrialSnapshot } from "../guestTrial";
 import type { AnalysisJob, HandRead } from "../types";
 import { applyHeroAction, formatActionEntry, legalHeroActions, startNewHand, toHandPayload, type SeatMode, type TrainerAction } from "../poker/engine";
 import { settlementForTrainerState } from "../poker/settlement";
@@ -24,6 +25,7 @@ export default function PlayPage() {
   const [hand, setHand] = useState(() => startNewHand({ seatMode: initialSeatMode }));
   const [savedHand, setSavedHand] = useState<HandRead | null>(null);
   const [analysisJob, setAnalysisJob] = useState<AnalysisJob | null>(null);
+  const [guestAnalysisTrial, setGuestAnalysisTrial] = useState<GuestTrialSnapshot>(() => readGuestAnalysisTrial());
   const [saveAttempted, setSaveAttempted] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -43,6 +45,7 @@ export default function PlayPage() {
   const completionState = {
     authConfigured,
     authLoading,
+    guestTrial: user ? null : guestAnalysisTrial,
     isAuthenticated: Boolean(user && accessToken),
     savedHandId: savedHand?.id ?? null,
     saving
@@ -55,28 +58,30 @@ export default function PlayPage() {
     }
 
     setSaveAttempted(true);
-    if (!accessToken) {
+    const auth = accessToken ? accessToken : { guestSessionId: getOrCreateGuestSessionId() };
+    if (!accessToken && guestAnalysisTrial.limitReached) {
       return;
     }
 
     setSaving(true);
-    saveHand(toHandPayload(hand), accessToken)
+    saveHand(toHandPayload(hand), auth)
       .then((created) => {
         setSavedHand(created);
         setError(null);
       })
       .catch((err: Error) => setError(err.message))
       .finally(() => setSaving(false));
-  }, [accessToken, authLoading, hand, saveAttempted]);
+  }, [accessToken, authLoading, guestAnalysisTrial.limitReached, hand, saveAttempted]);
 
   useEffect(() => {
-    if (!savedHand || !accessToken) {
+    if (!savedHand) {
       return;
     }
 
+    const auth = accessToken ? accessToken : { guestSessionId: getOrCreateGuestSessionId() };
     let cancelled = false;
     const refresh = () => {
-      getAnalysis(savedHand.id, accessToken)
+      getAnalysis(savedHand.id, auth)
         .then((detail) => {
           if (!cancelled) {
             const next = nextPlayAnalysisStateAfterRefresh({ analysisJob: null, error: null }, detail);
@@ -132,15 +137,23 @@ export default function PlayPage() {
   }, [act, hand.handOver, legalActions, newHand]);
 
   const requestAnalysis = () => {
-    if (!savedHand || !accessToken) {
+    if (!savedHand) {
       return;
     }
+    if (!accessToken && guestAnalysisTrial.limitReached) {
+      setError("Free analysis trial used. Sign in to analyze more hands.");
+      return;
+    }
+    const auth = accessToken ? accessToken : { guestSessionId: getOrCreateGuestSessionId() };
     setError(null);
-    analyzeHand(savedHand.id, accessToken)
+    analyzeHand(savedHand.id, auth)
       .then((job) => {
         const next = nextPlayAnalysisStateAfterAnalyzeSuccess({ analysisJob: null, error: null }, job);
         setAnalysisJob(next.analysisJob);
         setError(next.error);
+        if (!accessToken) {
+          setGuestAnalysisTrial(recordGuestTrialUse("analysis"));
+        }
       })
       .catch((err: Error) => setError(err.message));
   };
@@ -283,6 +296,13 @@ function readSeatMode(): SeatMode {
 
 function writeSeatMode(mode: SeatMode) {
   window.localStorage.setItem(SEAT_MODE_STORAGE_KEY, mode);
+}
+
+function readGuestAnalysisTrial(): GuestTrialSnapshot {
+  if (typeof window === "undefined") {
+    return { limit: 5, limitReached: false, remaining: 5, used: 0 };
+  }
+  return guestTrialSnapshot("analysis");
 }
 
 function shortcutTargetIsEditable(target: EventTarget | null): boolean {

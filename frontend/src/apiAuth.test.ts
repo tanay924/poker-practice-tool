@@ -11,6 +11,11 @@ assert.deepEqual(requestInitWithAuth("token-123").headers, {
   "Content-Type": "application/json"
 });
 
+assert.deepEqual(requestInitWithAuth(null, {}, "guest-12345678901234567890").headers, {
+  "Content-Type": "application/json",
+  "X-Guest-Session": "guest-12345678901234567890"
+});
+
 assert.deepEqual(
   requestInitWithAuth("token-123", {
     headers: {

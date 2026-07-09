@@ -6,27 +6,41 @@ assert.equal(
   playCompletionMessage({
     authConfigured: true,
     authLoading: false,
+    guestTrial: { limit: 5, limitReached: false, remaining: 3, used: 2 },
     isAuthenticated: false,
     savedHandId: null,
     saving: false
   }),
-  "Guest hand complete. Sign in to save this hand and run solver analysis."
+  "Guest hand complete. 3 free analysis hands remaining."
 );
 assert.deepEqual(
   playCompletionPrimaryAction({
     authConfigured: true,
     authLoading: false,
+    guestTrial: { limit: 5, limitReached: false, remaining: 3, used: 2 },
     isAuthenticated: false,
     savedHandId: null,
     saving: false
   }),
-  { kind: "auth", label: "Sign in to save and analyze", to: "/auth?redirect=/play" }
+  null
+);
+assert.deepEqual(
+  playCompletionPrimaryAction({
+    authConfigured: true,
+    authLoading: false,
+    guestTrial: { limit: 5, limitReached: true, remaining: 0, used: 5 },
+    isAuthenticated: false,
+    savedHandId: null,
+    saving: false
+  }),
+  { kind: "auth", label: "Sign in to analyze more hands", to: "/auth?redirect=/play" }
 );
 
 assert.equal(
   playCompletionMessage({
     authConfigured: true,
     authLoading: false,
+    guestTrial: null,
     isAuthenticated: true,
     savedHandId: 42,
     saving: false
@@ -37,6 +51,7 @@ assert.equal(
   playCompletionMessage({
     authConfigured: true,
     authLoading: false,
+    guestTrial: null,
     isAuthenticated: true,
     savedHandId: null,
     saving: true
@@ -47,6 +62,7 @@ assert.equal(
   playCompletionPrimaryAction({
     authConfigured: false,
     authLoading: false,
+    guestTrial: { limit: 5, limitReached: false, remaining: 5, used: 0 },
     isAuthenticated: false,
     savedHandId: null,
     saving: false

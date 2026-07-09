@@ -7,7 +7,7 @@ from sqlalchemy.orm import Session
 
 from app.analysis.decision_details import add_decision_details
 from app.analysis.service import build_solver_input
-from app.auth import AuthUser, require_current_user
+from app.auth import RequestActor, require_actor
 from app.db import get_db
 from app.models import AnalysisJob, Hand
 from app.schemas import AnalysisDetail, AnalysisJobRead, AnalysisListItem, HandRead
@@ -25,12 +25,12 @@ BOARD_CARDS_BY_STREET = {
 @router.get("", response_model=list[AnalysisListItem])
 def list_analysis(
     db: Session = Depends(get_db),
-    current_user: AuthUser = Depends(require_current_user),
+    actor: RequestActor = Depends(require_actor),
 ) -> list[AnalysisListItem]:
     rows = (
         db.query(AnalysisJob, Hand)
         .join(Hand, Hand.id == AnalysisJob.hand_id)
-        .filter(Hand.user_id == current_user.user_id)
+        .filter(_owner_filter(Hand, actor))
         .order_by(AnalysisJob.created_at.desc())
         .limit(100)
         .all()
@@ -53,9 +53,9 @@ def list_analysis(
 def get_analysis(
     hand_id: int,
     db: Session = Depends(get_db),
-    current_user: AuthUser = Depends(require_current_user),
+    actor: RequestActor = Depends(require_actor),
 ) -> AnalysisDetail:
-    hand = db.query(Hand).filter(Hand.id == hand_id, Hand.user_id == current_user.user_id).first()
+    hand = db.query(Hand).filter(Hand.id == hand_id, _owner_filter(Hand, actor)).first()
     if hand is None:
         raise HTTPException(status_code=404, detail="Hand not found")
 
@@ -80,6 +80,12 @@ def get_analysis(
         hand=HandRead.model_validate(hand),
         job=job_read,
     )
+
+
+def _owner_filter(model, actor: RequestActor):
+    if actor.user_id is not None:
+        return model.user_id == actor.user_id
+    return model.guest_session_id == actor.guest_session_id
 
 
 def visible_board_for_history(board: list[str], action_history: list[dict[str, Any]]) -> list[str]:

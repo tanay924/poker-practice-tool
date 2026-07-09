@@ -1,6 +1,7 @@
 import { createContext, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
 import type { Session, User } from "@supabase/supabase-js";
 
+import { signupUserMetadata } from "./accountProfile";
 import { isSupabaseConfigured, supabase } from "./supabaseClient";
 
 interface AuthContextValue {
@@ -10,7 +11,7 @@ interface AuthContextValue {
   session: Session | null;
   signIn(email: string, password: string): Promise<void>;
   signOut(): Promise<void>;
-  signUp(email: string, password: string, redirectTo: string): Promise<void>;
+  signUp(email: string, password: string, redirectTo: string, username: string): Promise<void>;
   user: User | null;
 }
 
@@ -69,7 +70,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         throw error;
       }
     },
-    async signUp(email: string, password: string, redirectTo: string) {
+    async signUp(email: string, password: string, redirectTo: string, username: string) {
       if (!supabase) {
         throw new Error("Supabase is not configured.");
       }
@@ -77,6 +78,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         email,
         password,
         options: {
+          data: signupUserMetadata(username),
           emailRedirectTo: redirectTo
         }
       });

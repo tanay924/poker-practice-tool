@@ -38,6 +38,10 @@ assert.deepEqual(
   [67]
 );
 assert.deepEqual(
+  filterAnalysisItems(items, { query: "#67", status: "all" }).map((item) => item.hand_id),
+  [67]
+);
+assert.deepEqual(
   filterAnalysisItems(items, { query: "ks 7d", status: "all" }).map((item) => item.hand_id),
   [68]
 );

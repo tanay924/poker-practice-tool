@@ -4,6 +4,7 @@ import { Link, useParams } from "react-router-dom";
 import { getAnalysis } from "../api";
 import { useAuth } from "../auth/AuthContext";
 import PlayingCard from "../components/PlayingCard";
+import { getOrCreateGuestSessionId } from "../guestTrial";
 import { formatActionEntry } from "../poker/engine";
 import { visibleBoardForHistory } from "../poker/visibility";
 import type { AnalysisDetail, DecisionDetails, EquityDetails, PotOddsDetails } from "../types";
@@ -18,10 +19,11 @@ export default function AnalysisDetailPage() {
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    if (!handId || !accessToken) {
+    if (!handId) {
       return;
     }
-    getAnalysis(handId, accessToken)
+    const auth = accessToken ? accessToken : { guestSessionId: getOrCreateGuestSessionId() };
+    getAnalysis(handId, auth)
       .then((next) => {
         setDetail(next);
         setError(null);
@@ -31,23 +33,6 @@ export default function AnalysisDetailPage() {
 
   if (authLoading) {
     return <p className="muted-text">Checking account...</p>;
-  }
-
-  if (!user) {
-    return (
-      <section className="stack">
-        <Link className="back-link" to="/analysis">Back to analysis</Link>
-        <div className="panel signed-out-panel">
-          <h2>Sign in to view analysis</h2>
-          <p className="muted-text">Answer sheets are private to the account that saved the hand.</p>
-          {authConfigured ? (
-            <Link className="button-link" to={`/auth?redirect=${encodeURIComponent(`/analysis/${handId ?? ""}`)}`}>Sign in</Link>
-          ) : (
-            <p className="error-text">Supabase is not configured yet.</p>
-          )}
-        </div>
-      </section>
-    );
   }
 
   if (error) {
@@ -86,6 +71,14 @@ export default function AnalysisDetailPage() {
         <h2>Answer Sheet</h2>
         <p className="answer-result-line">{resultText}</p>
       </div>
+
+      {!user && authConfigured && (
+        <div className="panel signed-out-panel">
+          <h3>Guest answer sheet</h3>
+          <p className="muted-text">Sign in to keep future answer sheets in a private library.</p>
+          <Link className="button-link" to={`/auth?redirect=${encodeURIComponent(`/analysis/${handId ?? ""}`)}`}>Sign in</Link>
+        </div>
+      )}
 
       <section className="hand-table-snapshot" aria-label="Final table state">
         <div className="snapshot-seat snapshot-villain">

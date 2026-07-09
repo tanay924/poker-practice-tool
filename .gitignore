@@ -8,6 +8,7 @@ venv/
 # Local SQLite runtime data
 backend/data/
 backend/logs/
+frontend/logs/
 
 # Managed local Shark checkout/build output
 vendor/shark-2.0/
@@ -20,3 +21,17 @@ frontend/tsconfig.tsbuildinfo
 # OS/editor
 .DS_Store
 Thumbs.db
+
+# Local environment
+.env
+.env.*
+!.env.example
+frontend/.env
+frontend/.env.*
+!frontend/.env.example
+backend/.env
+backend/.env.*
+!backend/.env.example
+
+# Supabase CLI local link state
+supabase/.temp/

@@ -5,6 +5,7 @@ import hashlib
 import json
 from typing import Any
 
+from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 from app.analysis.decision_details import add_decision_details
@@ -20,20 +21,51 @@ from app.solver.errors import SolverExecutionError, UnsupportedAnalysisError
 from app.solver.factory import create_solver_from_env
 
 
-def create_analysis_job(db: Session, hand_id: int, user_id: str | None = None) -> AnalysisJob:
+MAX_ACTIVE_ANALYSIS_JOBS_PER_USER = 5
+MAX_GUEST_ANALYSIS_JOBS = 5
+ACTIVE_JOB_STATUSES = {"queued", "solving"}
+
+
+class AnalysisQueueLimitError(RuntimeError):
+    def __init__(self, active_count: int, limit: int = MAX_ACTIVE_ANALYSIS_JOBS_PER_USER) -> None:
+        self.active_count = active_count
+        self.limit = limit
+        super().__init__(f"You already have {limit} analysis jobs queued or solving. Wait for one to finish, then try again.")
+
+
+class GuestAnalysisLimitError(RuntimeError):
+    def __init__(self, limit: int = MAX_GUEST_ANALYSIS_JOBS) -> None:
+        self.limit = limit
+        super().__init__(f"Free analysis trial used. Sign in to analyze more hands.")
+
+
+def create_analysis_job(
+    db: Session,
+    hand_id: int,
+    user_id: str | None = None,
+    guest_session_id: str | None = None,
+) -> AnalysisJob:
     hand = db.get(Hand, hand_id)
     if hand is None:
         raise ValueError(f"Hand {hand_id} does not exist")
     if user_id is not None and hand.user_id != user_id:
         raise ValueError(f"Hand {hand_id} does not exist")
+    if guest_session_id is not None and hand.guest_session_id != guest_session_id:
+        raise ValueError(f"Hand {hand_id} does not exist")
 
     existing = db.query(AnalysisJob).filter(AnalysisJob.hand_id == hand_id).first()
     if existing:
         if existing.status in {"failed", "unsupported"}:
+            _ensure_queue_slot_available(db, hand.user_id, hand.guest_session_id)
+            now = utc_now()
             existing.status = "queued"
             existing.user_id = hand.user_id
+            existing.guest_session_id = hand.guest_session_id
+            existing.queued_at = now
             existing.started_at = None
+            existing.claimed_at = None
             existing.finished_at = None
+            existing.worker_id = None
             existing.error = None
             existing.solver_input_json = None
             existing.solver_output_json = None
@@ -41,11 +73,36 @@ def create_analysis_job(db: Session, hand_id: int, user_id: str | None = None) -
             db.refresh(existing)
         return existing
 
-    job = AnalysisJob(hand_id=hand_id, user_id=hand.user_id, status="queued")
+    _ensure_queue_slot_available(db, hand.user_id, hand.guest_session_id)
+    now = utc_now()
+    job = AnalysisJob(
+        hand_id=hand_id,
+        user_id=hand.user_id,
+        guest_session_id=hand.guest_session_id,
+        status="queued",
+        queued_at=now,
+    )
     db.add(job)
     db.commit()
     db.refresh(job)
     return job
+
+
+def _ensure_queue_slot_available(db: Session, user_id: str | None, guest_session_id: str | None) -> None:
+    if user_id is not None:
+        active_count = (
+            db.query(AnalysisJob)
+            .filter(AnalysisJob.user_id == user_id, AnalysisJob.status.in_(ACTIVE_JOB_STATUSES))
+            .count()
+        )
+        if active_count >= MAX_ACTIVE_ANALYSIS_JOBS_PER_USER:
+            raise AnalysisQueueLimitError(active_count)
+        return
+
+    if guest_session_id is not None:
+        total_count = db.query(AnalysisJob).filter(AnalysisJob.guest_session_id == guest_session_id).count()
+        if total_count >= MAX_GUEST_ANALYSIS_JOBS:
+            raise GuestAnalysisLimitError()
 
 
 def build_solver_input(hand: Hand) -> dict[str, Any]:
@@ -115,11 +172,13 @@ def compute_cache_key(solver_input: dict[str, Any]) -> str:
 async def process_next_analysis_job(
     db: Session,
     solver: SolverAdapter | None = None,
+    worker_id: str = "in-process-worker",
 ) -> AnalysisJob | None:
     job = (
         db.query(AnalysisJob)
         .filter(AnalysisJob.status == "queued")
-        .order_by(AnalysisJob.created_at.asc())
+        .order_by(func.coalesce(AnalysisJob.queued_at, AnalysisJob.created_at).asc(), AnalysisJob.id.asc())
+        .with_for_update(skip_locked=True)
         .first()
     )
     if job is None:
@@ -127,7 +186,11 @@ async def process_next_analysis_job(
 
     solver = solver or create_solver_from_env()
     job.status = "solving"
-    job.started_at = utc_now()
+    now = utc_now()
+    job.started_at = now
+    job.claimed_at = now
+    job.worker_id = worker_id
+    job.attempt_count = (job.attempt_count or 0) + 1
     job.error = None
     db.commit()
     db.refresh(job)

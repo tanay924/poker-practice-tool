@@ -1,6 +1,9 @@
+import { guestTrialMessage, type GuestTrialSnapshot } from "../guestTrial";
+
 export interface PlayCompletionState {
   authConfigured: boolean;
   authLoading: boolean;
+  guestTrial: GuestTrialSnapshot | null;
   isAuthenticated: boolean;
   savedHandId: number | null;
   saving: boolean;
@@ -20,7 +23,10 @@ export function playCompletionMessage(state: PlayCompletionState): string {
     return "Guest hand complete. Configure Supabase to save hands and run solver analysis.";
   }
   if (!state.isAuthenticated) {
-    return "Guest hand complete. Sign in to save this hand and run solver analysis.";
+    if (state.guestTrial) {
+      return `Guest hand complete. ${guestTrialMessage(state.guestTrial, "analysis")}`;
+    }
+    return "Guest hand complete.";
   }
   if (state.saving) {
     return "Saving hand...";
@@ -35,9 +41,12 @@ export function playCompletionPrimaryAction(state: PlayCompletionState): PlayCom
   if (!state.authConfigured || state.authLoading || state.isAuthenticated) {
     return null;
   }
+  if (!state.guestTrial?.limitReached) {
+    return null;
+  }
   return {
     kind: "auth",
-    label: "Sign in to save and analyze",
+    label: "Sign in to analyze more hands",
     to: "/auth?redirect=/play"
   };
 }

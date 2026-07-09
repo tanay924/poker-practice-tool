@@ -7,6 +7,10 @@ import os
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
+from app.env import load_local_env
+
+load_local_env()
+
 from app.analysis.service import process_next_analysis_job
 from app.api import analysis, hands, ranges
 from app.db import SessionLocal, init_db

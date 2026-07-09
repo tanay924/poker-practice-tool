@@ -10,7 +10,7 @@
     "test:analysis-detail": "tsx src/pages/AnalysisDetailPage.test.ts && tsx src/pages/analysisDecisionDetails.test.ts && tsx src/pages/analysisVisibility.test.ts",
     "test:study-pages": "tsx src/pages/AnalysisPage.test.ts && tsx src/pages/RangesPage.test.ts && tsx src/pages/AnalysisDetailPage.test.ts && tsx src/pages/analysisDecisionDetails.test.ts && tsx src/pages/analysisVisibility.test.ts",
     "test:cards": "tsx src/components/PlayingCard.test.ts",
-    "test:play-page": "tsx src/pages/PlayPage.test.ts && tsx src/pages/playActionShortcuts.test.ts && tsx src/pages/playCompletionCopy.test.ts && tsx src/apiAuth.test.ts",
+    "test:play-page": "tsx src/pages/PlayPage.test.ts && tsx src/pages/playActionShortcuts.test.ts && tsx src/pages/playCompletionCopy.test.ts && tsx src/apiAuth.test.ts && tsx src/guestTrial.test.ts && tsx src/auth/accountProfile.test.ts && tsx src/accountMenu.test.ts",
     "test:poker": "tsx src/poker/handEvaluator.test.ts && tsx src/poker/engine.test.ts",
     "test:preflop": "tsx src/preflop/engine.test.ts && tsx src/preflop/rangeMatrix.test.ts && tsx src/preflop/practiceModes.test.ts && tsx src/preflop/historyDisplay.test.ts",
     "test:table-layout": "tsx src/styles/tableLayout.test.ts",

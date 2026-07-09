@@ -166,8 +166,9 @@ a:hover {
   border-radius: 10px;
   display: flex;
   flex-wrap: wrap;
-  gap: 4px;
-  padding: 4px;
+  gap: 10px;
+  justify-content: center;
+  padding: 6px;
 }
 
 .nav-links a {
@@ -175,7 +176,9 @@ a:hover {
   border-radius: 8px;
   color: var(--text-soft);
   font-size: 0.9rem;
-  padding: 9px 12px;
+  min-width: 86px;
+  padding: 10px 16px;
+  text-align: center;
 }
 
 .nav-links a:hover {
@@ -189,30 +192,118 @@ a:hover {
   color: #ffe6a6;
 }
 
-.account-controls {
+.account-menu {
+  margin-left: auto;
+  position: relative;
+}
+
+.account-icon-button {
   align-items: center;
+  aspect-ratio: 1;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.11), rgba(255, 255, 255, 0.045));
+  border: 1px solid var(--line-strong);
+  border-radius: 999px;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.16),
+    0 12px 28px rgba(4, 15, 10, 0.32);
+  color: var(--text);
+  display: inline-flex;
+  height: 42px;
+  justify-content: center;
+  min-height: 42px;
+  padding: 0;
+  width: 42px;
+}
+
+.account-icon-button:hover {
+  background:
+    linear-gradient(180deg, rgba(240, 201, 106, 0.18), rgba(255, 255, 255, 0.065));
+  color: #ffe6a6;
+}
+
+.account-avatar-icon {
+  display: block;
+  height: 21px;
+  position: relative;
+  width: 21px;
+}
+
+.account-avatar-icon::before,
+.account-avatar-icon::after {
+  content: "";
+  left: 50%;
+  position: absolute;
+  transform: translateX(-50%);
+}
+
+.account-avatar-icon::before {
+  border: 2px solid currentColor;
+  border-radius: 999px;
+  height: 7px;
+  top: 1px;
+  width: 7px;
+}
+
+.account-avatar-icon::after {
+  border: 2px solid currentColor;
+  border-radius: 999px 999px 7px 7px;
+  height: 8px;
+  top: 12px;
+  width: 16px;
+}
+
+.account-menu-popover {
+  background:
+    linear-gradient(180deg, rgba(31, 40, 33, 0.98), rgba(16, 22, 18, 0.98));
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow-md);
+  display: grid;
+  gap: 7px;
+  min-width: 220px;
+  padding: 10px;
+  position: absolute;
+  right: 0;
+  top: calc(100% + 9px);
+  z-index: 30;
+}
+
+.account-menu-status {
+  border-bottom: 1px solid var(--line);
+  color: var(--muted-strong);
+  font-size: 0.82rem;
+  font-weight: 850;
+  margin: 0 0 2px;
+  overflow-wrap: anywhere;
+  padding: 3px 5px 9px;
+}
+
+.account-menu-link,
+.account-menu-action {
+  align-items: center;
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 7px;
+  box-shadow: none;
   color: var(--text-soft);
   display: flex;
-  font-size: 0.84rem;
-  font-weight: 800;
-  gap: 10px;
-}
-
-.account-link,
-.account-status {
-  border: 1px solid var(--line);
-  border-radius: 999px;
-  color: var(--text-soft);
-  font-size: 0.84rem;
-  font-weight: 900;
-  padding: 8px 11px;
+  font-size: 0.9rem;
+  font-weight: 850;
+  justify-content: flex-start;
+  min-height: 38px;
+  padding: 9px 10px;
+  text-align: left;
   text-decoration: none;
+  width: 100%;
 }
 
-.account-link:hover {
-  background: rgba(255, 255, 255, 0.08);
+.account-menu-link:hover,
+.account-menu-action:hover {
+  background: rgba(255, 255, 255, 0.07);
   color: var(--text);
   text-decoration: none;
+  transform: none;
 }
 
 main {
@@ -1025,6 +1116,19 @@ button.compact-button,
 .payout-heading p {
   color: var(--text-soft);
   margin: 0;
+}
+
+.guest-trial-panel {
+  display: grid;
+  gap: 10px;
+}
+
+.guest-trial-panel p {
+  margin: 0;
+}
+
+.guest-trial-panel.locked {
+  border-color: rgba(240, 201, 106, 0.36);
 }
 
 .feedback-box {

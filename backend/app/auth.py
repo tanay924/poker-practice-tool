@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 import os
+import re
 from typing import Annotated, Any
 
 from fastapi import Depends, Header, HTTPException, status
@@ -14,14 +15,44 @@ class AuthUser:
     email: str | None = None
 
 
+@dataclass(frozen=True)
+class RequestActor:
+    user_id: str | None = None
+    guest_session_id: str | None = None
+
+    @property
+    def is_authenticated(self) -> bool:
+        return self.user_id is not None
+
+
 class AuthNotConfiguredError(RuntimeError):
     pass
 
 
 def require_current_user(authorization: Annotated[str | None, Header()] = None) -> AuthUser:
+    current_user = current_user_from_authorization(authorization)
+    if current_user is None:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Sign in required")
+    return current_user
+
+
+def require_actor(
+    authorization: Annotated[str | None, Header()] = None,
+    x_guest_session: Annotated[str | None, Header()] = None,
+) -> RequestActor:
+    current_user = current_user_from_authorization(authorization)
+    if current_user is not None:
+        return RequestActor(user_id=current_user.user_id)
+    guest_session_id = _clean_guest_session_id(x_guest_session)
+    if guest_session_id is not None:
+        return RequestActor(guest_session_id=guest_session_id)
+    raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Sign in required")
+
+
+def current_user_from_authorization(authorization: str | None) -> AuthUser | None:
     token = _bearer_token(authorization)
     if token is None:
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Sign in required")
+        return None
 
     try:
         claims = verify_supabase_jwt(token)
@@ -96,3 +127,15 @@ def _bearer_token(authorization: str | None) -> str | None:
 def _admin_user_ids() -> set[str]:
     raw = os.getenv("POKER_TRAINER_ADMIN_USER_IDS", "")
     return {user_id.strip() for user_id in raw.split(",") if user_id.strip()}
+
+
+GUEST_SESSION_PATTERN = re.compile(r"^[A-Za-z0-9_-]{20,96}$")
+
+
+def _clean_guest_session_id(value: str | None) -> str | None:
+    if value is None:
+        return None
+    cleaned = value.strip()
+    if not GUEST_SESSION_PATTERN.fullmatch(cleaned):
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid guest session")
+    return cleaned

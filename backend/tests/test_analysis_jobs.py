@@ -1,9 +1,11 @@
+import asyncio
+
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 
-from app.analysis.service import create_analysis_job, process_next_analysis_job
+from app.analysis.service import AnalysisQueueLimitError, create_analysis_job, process_next_analysis_job
 from app.api.analysis import list_analysis
-from app.auth import AuthUser
+from app.auth import RequestActor
 from app.db import Base
 from app.models import AnalysisJob, Hand
 
@@ -132,6 +134,66 @@ def test_failed_analysis_job_is_requeued_for_retry() -> None:
     assert len(jobs) == 1
 
 
+def test_user_cannot_queue_more_than_five_active_analysis_jobs() -> None:
+    engine = create_engine("sqlite:///:memory:", connect_args={"check_same_thread": False})
+    TestingSession = sessionmaker(bind=engine, autoflush=False, autocommit=False)
+    Base.metadata.create_all(bind=engine)
+
+    with TestingSession() as db:
+        hands = []
+        for index in range(6):
+            hand = make_integrated_hand()
+            hand.user_id = "user-a"
+            hand.hero_cards = f"AsK{index}"
+            db.add(hand)
+            hands.append(hand)
+        db.commit()
+        for hand in hands:
+            db.refresh(hand)
+
+        for hand in hands[:5]:
+            create_analysis_job(db, hand.id, user_id="user-a")
+
+        try:
+            create_analysis_job(db, hands[5].id, user_id="user-a")
+        except AnalysisQueueLimitError as exc:
+            error = exc
+        else:
+            raise AssertionError("Expected queue limit error")
+
+        jobs = db.query(AnalysisJob).filter(AnalysisJob.user_id == "user-a").all()
+
+    assert error.active_count == 5
+    assert len(jobs) == 5
+
+
+def test_processing_uses_global_fifo_order_across_users() -> None:
+    engine = create_engine("sqlite:///:memory:", connect_args={"check_same_thread": False})
+    TestingSession = sessionmaker(bind=engine, autoflush=False, autocommit=False)
+    Base.metadata.create_all(bind=engine)
+
+    with TestingSession() as db:
+        hand_a = make_integrated_hand()
+        hand_a.user_id = "user-a"
+        hand_b = make_integrated_hand()
+        hand_b.user_id = "user-b"
+        db.add_all([hand_a, hand_b])
+        db.commit()
+        db.refresh(hand_a)
+        db.refresh(hand_b)
+
+        later = create_analysis_job(db, hand_b.id, user_id="user-b")
+        earlier = create_analysis_job(db, hand_a.id, user_id="user-a")
+        hand_a_id = hand_a.id
+        earlier.queued_at = later.queued_at.replace(year=later.queued_at.year - 1)
+        db.commit()
+
+        job = asyncio.run(process_next_analysis_job(db, solver=BlankFailureSolver()))
+
+    assert job is not None
+    assert job.hand_id == hand_a_id
+
+
 def test_blank_solver_exception_records_exception_type() -> None:
     engine = create_engine("sqlite:///:memory:", connect_args={"check_same_thread": False})
     TestingSession = sessionmaker(bind=engine, autoflush=False, autocommit=False)
@@ -201,7 +263,7 @@ def test_analysis_list_only_includes_revealed_board_cards() -> None:
         ])
         db.commit()
 
-        rows = list_analysis(db, AuthUser(user_id="user-a"))
+        rows = list_analysis(db, RequestActor(user_id="user-a"))
 
     boards_by_hand_id = {row.hand_id: row.board for row in rows}
     assert boards_by_hand_id[preflop_hand.id] == []
