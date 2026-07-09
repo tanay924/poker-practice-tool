@@ -9,7 +9,7 @@ from app.analysis.decision_details import add_decision_details
 from app.analysis.service import build_solver_input
 from app.auth import RequestActor, require_actor
 from app.db import get_db
-from app.models import AnalysisJob, Hand
+from app.models import AnalysisJob, Hand, SharedHand
 from app.schemas import AnalysisDetail, AnalysisJobRead, AnalysisListItem, HandRead
 
 router = APIRouter(prefix="/api/analysis", tags=["analysis"])
@@ -56,6 +56,14 @@ def get_analysis(
     actor: RequestActor = Depends(require_actor),
 ) -> AnalysisDetail:
     hand = db.query(Hand).filter(Hand.id == hand_id, _owner_filter(Hand, actor)).first()
+    if hand is None and actor.user_id is not None:
+        shared_hand = (
+            db.query(SharedHand)
+            .filter(SharedHand.hand_id == hand_id, SharedHand.recipient_user_id == actor.user_id)
+            .first()
+        )
+        if shared_hand is not None:
+            hand = db.get(Hand, hand_id)
     if hand is None:
         raise HTTPException(status_code=404, detail="Hand not found")
 

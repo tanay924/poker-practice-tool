@@ -1,7 +1,8 @@
 import { createContext, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
 import type { Session, User } from "@supabase/supabase-js";
 
-import { signupUserMetadata } from "./accountProfile";
+import { syncProfile } from "../api";
+import { profileLabelFromUserMetadata, signupUserMetadata } from "./accountProfile";
 import { isSupabaseConfigured, supabase } from "./supabaseClient";
 
 interface AuthContextValue {
@@ -45,6 +46,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       subscription.subscription.unsubscribe();
     };
   }, []);
+
+  useEffect(() => {
+    const username = profileLabelFromUserMetadata(session?.user.user_metadata);
+    if (!session?.access_token || !username) {
+      return;
+    }
+    void syncProfile(username, session.access_token).catch(() => {
+      // Profile sync is retried on the next auth state refresh.
+    });
+  }, [session?.access_token, session?.user.user_metadata]);
 
   const value = useMemo<AuthContextValue>(() => ({
     accessToken: session?.access_token ?? null,

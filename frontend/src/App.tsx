@@ -1,16 +1,20 @@
 import { useEffect, useId, useRef, useState, type FocusEvent } from "react";
 import { NavLink, Navigate, Route, Routes } from "react-router-dom";
 
-import { accountMenuModel } from "./accountMenu";
+import { getNotifications } from "./api";
+import { accountMenuModel, notificationTotal } from "./accountMenu";
 import { profileLabelFromUserMetadata } from "./auth/accountProfile";
 import { useAuth } from "./auth/AuthContext";
+import type { NotificationCounts } from "./types";
 import AnalysisDetailPage from "./pages/AnalysisDetailPage";
 import AnalysisPage from "./pages/AnalysisPage";
 import AuthCallbackPage from "./pages/AuthCallbackPage";
 import AuthPage from "./pages/AuthPage";
+import FriendsPage from "./pages/FriendsPage";
 import PlayPage from "./pages/PlayPage";
 import PreflopPracticePage from "./pages/PreflopPracticePage";
 import RangesPage from "./pages/RangesPage";
+import SharedHandsPage from "./pages/SharedHandsPage";
 
 export default function App() {
   return (
@@ -40,7 +44,9 @@ export default function App() {
           <Route path="/preflop" element={<PreflopPracticePage />} />
           <Route path="/analysis" element={<AnalysisPage />} />
           <Route path="/analysis/:handId" element={<AnalysisDetailPage />} />
+          <Route path="/friends" element={<FriendsPage />} />
           <Route path="/ranges" element={<RangesPage />} />
+          <Route path="/shared" element={<SharedHandsPage />} />
         </Routes>
       </main>
     </div>
@@ -48,7 +54,8 @@ export default function App() {
 }
 
 function AccountControls() {
-  const { authConfigured, loading, signOut, user } = useAuth();
+  const { accessToken, authConfigured, loading, signOut, user } = useAuth();
+  const [notifications, setNotifications] = useState<NotificationCounts | null>(null);
   const [open, setOpen] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
   const menuId = useId();
@@ -56,8 +63,38 @@ function AccountControls() {
     authConfigured,
     isAuthenticated: Boolean(user),
     loading,
+    notifications,
     userLabel: profileLabelFromUserMetadata(user?.user_metadata)
   });
+  const totalNotifications = notificationTotal(notifications);
+
+  useEffect(() => {
+    if (!accessToken || !user) {
+      setNotifications(null);
+      return;
+    }
+    let cancelled = false;
+    const refreshNotifications = () => {
+      getNotifications(accessToken)
+        .then((next) => {
+          if (!cancelled) {
+            setNotifications(next);
+          }
+        })
+        .catch(() => {
+          if (!cancelled) {
+            setNotifications(null);
+          }
+        });
+    };
+
+    refreshNotifications();
+    const interval = window.setInterval(refreshNotifications, 15000);
+    return () => {
+      cancelled = true;
+      window.clearInterval(interval);
+    };
+  }, [accessToken, user]);
 
   useEffect(() => {
     if (!open) {
@@ -91,6 +128,7 @@ function AccountControls() {
         type="button"
       >
         <span className="account-avatar-icon" aria-hidden="true" />
+        {totalNotifications > 0 && <span className="account-notification-badge">{totalNotifications}</span>}
       </button>
 
       {open && (
@@ -114,7 +152,8 @@ function AccountControls() {
             }
             return (
               <NavLink className="account-menu-link" key={item.label} onClick={() => setOpen(false)} to={item.to ?? "/play"}>
-                {item.label}
+                <span>{item.label}</span>
+                {item.badge && <span className="menu-item-badge">{item.badge}</span>}
               </NavLink>
             );
           })}

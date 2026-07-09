@@ -213,6 +213,7 @@ a:hover {
   justify-content: center;
   min-height: 42px;
   padding: 0;
+  position: relative;
   width: 42px;
 }
 
@@ -253,6 +254,29 @@ a:hover {
   width: 16px;
 }
 
+.account-notification-badge,
+.menu-item-badge {
+  align-items: center;
+  background: linear-gradient(180deg, #f4cb64, #c98e2c);
+  border: 1px solid rgba(255, 224, 154, 0.44);
+  border-radius: 999px;
+  color: #1d1200;
+  display: inline-flex;
+  font-size: 0.72rem;
+  font-weight: 950;
+  justify-content: center;
+  min-width: 20px;
+}
+
+.account-notification-badge {
+  box-shadow: 0 6px 14px rgba(0, 0, 0, 0.34);
+  min-height: 20px;
+  padding: 0 5px;
+  position: absolute;
+  right: -5px;
+  top: -5px;
+}
+
 .account-menu-popover {
   background:
     linear-gradient(180deg, rgba(31, 40, 33, 0.98), rgba(16, 22, 18, 0.98));
@@ -290,12 +314,17 @@ a:hover {
   display: flex;
   font-size: 0.9rem;
   font-weight: 850;
-  justify-content: flex-start;
+  justify-content: space-between;
   min-height: 38px;
   padding: 9px 10px;
   text-align: left;
   text-decoration: none;
   width: 100%;
+}
+
+.menu-item-badge {
+  min-height: 19px;
+  padding: 0 6px;
 }
 
 .account-menu-link:hover,
@@ -1096,6 +1125,86 @@ button.compact-button,
   gap: 8px;
 }
 
+.social-page {
+  max-width: 1180px;
+}
+
+.social-panel {
+  display: grid;
+  gap: 14px;
+}
+
+.social-form {
+  align-items: end;
+  display: grid;
+  gap: 12px;
+  grid-template-columns: minmax(220px, 1fr) auto;
+}
+
+.social-form label {
+  display: grid;
+  gap: 6px;
+}
+
+.social-form input {
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  color: var(--text);
+  min-height: 42px;
+  padding: 9px 11px;
+}
+
+.social-columns {
+  align-items: start;
+  display: grid;
+  gap: var(--space-5);
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.social-list {
+  display: grid;
+  gap: 10px;
+}
+
+.social-row {
+  align-items: center;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  display: grid;
+  gap: 12px;
+  grid-template-columns: minmax(0, 1fr) auto;
+  padding: 12px;
+}
+
+.social-row strong {
+  color: var(--text);
+  display: block;
+  overflow-wrap: anywhere;
+}
+
+.social-row span {
+  color: var(--muted-strong);
+  font-size: 0.86rem;
+  font-weight: 800;
+}
+
+.social-row-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  justify-content: flex-end;
+}
+
+.share-hand-panel {
+  max-width: 760px;
+}
+
+.unread-row {
+  background: rgba(216, 166, 66, 0.08);
+}
+
 .payout-card {
   display: grid;
   gap: 8px;
@@ -1758,6 +1867,20 @@ td {
 
   .decision-detail-grid {
     grid-template-columns: 1fr;
+  }
+
+  .social-columns,
+  .social-form,
+  .social-row {
+    grid-template-columns: 1fr;
+  }
+
+  .social-row-actions {
+    justify-content: stretch;
+  }
+
+  .social-row-actions button {
+    flex: 1 1 auto;
   }
 
   .strategy-row strong {

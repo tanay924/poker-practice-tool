@@ -73,3 +73,50 @@ class RangeRead(BaseModel):
     source: str
     range_json: dict[str, Any]
     created_at: datetime
+
+
+class ProfileUpsertRequest(BaseModel):
+    username: str = Field(min_length=2, max_length=24)
+
+
+class ProfileRead(BaseModel):
+    username: str
+    user_id: str
+
+
+class FriendRequestCreate(BaseModel):
+    username: str = Field(min_length=2, max_length=24)
+
+
+class FriendRequestRead(BaseModel):
+    id: int
+    requester_username: str
+    recipient_username: str
+    status: str
+    created_at: datetime
+
+
+class FriendRead(BaseModel):
+    user_id: str
+    username: str
+
+
+class NotificationCounts(BaseModel):
+    pending_friend_requests: int
+    unread_shared_hands: int
+
+
+class ShareHandRequest(BaseModel):
+    hand_id: int
+    username: str = Field(min_length=2, max_length=24)
+
+
+class SharedHandRead(BaseModel):
+    id: int
+    hand_id: int
+    owner_username: str
+    hero_hand: str
+    board: list[str]
+    status: AnalysisStatus | None = None
+    created_at: datetime
+    read_at: datetime | None = None

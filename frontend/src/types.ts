@@ -145,6 +145,40 @@ export interface AnalysisDetail {
   job: AnalysisJob | null;
 }
 
+export interface ProfileRead {
+  user_id: string;
+  username: string;
+}
+
+export interface FriendRequestRead {
+  id: number;
+  requester_username: string;
+  recipient_username: string;
+  status: string;
+  created_at: string;
+}
+
+export interface FriendRead {
+  user_id: string;
+  username: string;
+}
+
+export interface NotificationCounts {
+  pending_friend_requests: number;
+  unread_shared_hands: number;
+}
+
+export interface SharedHandRead {
+  id: number;
+  hand_id: number;
+  owner_username: string;
+  hero_hand: string;
+  board: string[];
+  status: AnalysisStatus | null;
+  created_at: string;
+  read_at: string | null;
+}
+
 export interface PreflopRange {
   id: number;
   name: string;

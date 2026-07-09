@@ -12,7 +12,7 @@ from app.env import load_local_env
 load_local_env()
 
 from app.analysis.service import process_next_analysis_job
-from app.api import analysis, hands, ranges
+from app.api import analysis, hands, ranges, social
 from app.db import SessionLocal, init_db
 from app.seed import seed_database
 from app.solver.adapters import SolverAdapter
@@ -64,6 +64,7 @@ app.add_middleware(
 app.include_router(hands.router)
 app.include_router(analysis.router)
 app.include_router(ranges.router)
+app.include_router(social.router)
 
 
 @app.get("/api/health")

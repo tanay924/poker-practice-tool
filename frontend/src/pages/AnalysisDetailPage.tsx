@@ -1,7 +1,7 @@
-import { useEffect, useState } from "react";
-import { Link, useParams } from "react-router-dom";
+import { useEffect, useState, type FormEvent } from "react";
+import { Link, useParams, useSearchParams } from "react-router-dom";
 
-import { getAnalysis } from "../api";
+import { getAnalysis, shareHand } from "../api";
 import { useAuth } from "../auth/AuthContext";
 import PlayingCard from "../components/PlayingCard";
 import { getOrCreateGuestSessionId } from "../guestTrial";
@@ -14,9 +14,15 @@ import { shouldRevealAnalysisOpponentCards } from "./analysisVisibility";
 
 export default function AnalysisDetailPage() {
   const { handId } = useParams();
+  const [searchParams] = useSearchParams();
   const { accessToken, authConfigured, loading: authLoading, user } = useAuth();
   const [detail, setDetail] = useState<AnalysisDetail | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [shareUsername, setShareUsername] = useState("");
+  const [shareMessage, setShareMessage] = useState<string | null>(null);
+  const [shareError, setShareError] = useState<string | null>(null);
+  const [sharing, setSharing] = useState(false);
+  const viewingSharedHand = searchParams.get("shared") === "1";
 
   useEffect(() => {
     if (!handId) {
@@ -61,10 +67,30 @@ export default function AnalysisDetailPage() {
       })
     : null;
   const showSolverMetadata = Boolean(solverOutput?.metadata && solverOutput.postflop_status !== "skipped");
+  const submitShare = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    if (!accessToken || !detail || !shareUsername.trim()) {
+      return;
+    }
+    setSharing(true);
+    setShareMessage(null);
+    setShareError(null);
+    try {
+      await shareHand(detail.hand.id, shareUsername, accessToken);
+      setShareUsername("");
+      setShareMessage("Hand shared.");
+    } catch (err) {
+      setShareError(err instanceof Error ? err.message : "Could not share this hand.");
+    } finally {
+      setSharing(false);
+    }
+  };
 
   return (
     <section className="stack">
-      <Link className="back-link" to="/analysis">Back to analysis</Link>
+      <Link className="back-link" to={viewingSharedHand ? "/shared" : "/analysis"}>
+        {viewingSharedHand ? "Back to shared hands" : "Back to analysis"}
+      </Link>
 
       <div className="page-heading">
         <p className="eyebrow">Hand #{detail.hand.id}</p>
@@ -78,6 +104,31 @@ export default function AnalysisDetailPage() {
           <p className="muted-text">Sign in to keep future answer sheets in a private library.</p>
           <Link className="button-link" to={`/auth?redirect=${encodeURIComponent(`/analysis/${handId ?? ""}`)}`}>Sign in</Link>
         </div>
+      )}
+
+      {user && accessToken && !viewingSharedHand && (
+        <section className="panel social-panel share-hand-panel">
+          <div>
+            <h3>Share this hand</h3>
+            <p className="muted-text">Share by username after a friend request has been accepted.</p>
+          </div>
+          <form className="social-form" onSubmit={submitShare}>
+            <label>
+              <span className="label">Friend username</span>
+              <input
+                autoComplete="off"
+                onChange={(event) => setShareUsername(event.target.value)}
+                placeholder="Pocket Tens"
+                value={shareUsername}
+              />
+            </label>
+            <button disabled={sharing || !shareUsername.trim()} type="submit">
+              {sharing ? "Sharing..." : "Share hand"}
+            </button>
+          </form>
+          {shareMessage && <p className="success-text">{shareMessage}</p>}
+          {shareError && <p className="error-text">{shareError}</p>}
+        </section>
       )}
 
       <section className="hand-table-snapshot" aria-label="Final table state">

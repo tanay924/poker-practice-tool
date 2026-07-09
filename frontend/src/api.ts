@@ -1,4 +1,16 @@
-import type { AnalysisDetail, AnalysisJob, AnalysisListItem, HandCreate, HandRead, PreflopRange } from "./types";
+import type {
+  AnalysisDetail,
+  AnalysisJob,
+  AnalysisListItem,
+  FriendRead,
+  FriendRequestRead,
+  HandCreate,
+  HandRead,
+  NotificationCounts,
+  PreflopRange,
+  ProfileRead,
+  SharedHandRead
+} from "./types";
 
 const env = (import.meta as ImportMeta & { env?: Record<string, string | undefined> }).env;
 const API_BASE = env?.VITE_API_URL ?? "http://127.0.0.1:8000";
@@ -51,6 +63,55 @@ export function listAnalysis(auth?: string | null | ApiAuthContext): Promise<Ana
 
 export function getAnalysis(handId: string | number, auth?: string | null | ApiAuthContext): Promise<AnalysisDetail> {
   return request<AnalysisDetail>(`/api/analysis/${handId}`, {}, auth);
+}
+
+export function syncProfile(username: string, accessToken?: string | null): Promise<ProfileRead> {
+  return request<ProfileRead>("/api/social/profile", {
+    method: "PUT",
+    body: JSON.stringify({ username })
+  }, accessToken);
+}
+
+export function getNotifications(accessToken?: string | null): Promise<NotificationCounts> {
+  return request<NotificationCounts>("/api/social/notifications", {}, accessToken);
+}
+
+export function listFriendRequests(accessToken?: string | null): Promise<FriendRequestRead[]> {
+  return request<FriendRequestRead[]>("/api/social/friend-requests", {}, accessToken);
+}
+
+export function sendFriendRequest(username: string, accessToken?: string | null): Promise<FriendRequestRead> {
+  return request<FriendRequestRead>("/api/social/friend-requests", {
+    method: "POST",
+    body: JSON.stringify({ username })
+  }, accessToken);
+}
+
+export function acceptFriendRequest(requestId: number, accessToken?: string | null): Promise<FriendRequestRead> {
+  return request<FriendRequestRead>(`/api/social/friend-requests/${requestId}/accept`, { method: "POST" }, accessToken);
+}
+
+export function declineFriendRequest(requestId: number, accessToken?: string | null): Promise<FriendRequestRead> {
+  return request<FriendRequestRead>(`/api/social/friend-requests/${requestId}/decline`, { method: "POST" }, accessToken);
+}
+
+export function listFriends(accessToken?: string | null): Promise<FriendRead[]> {
+  return request<FriendRead[]>("/api/social/friends", {}, accessToken);
+}
+
+export function shareHand(handId: number, username: string, accessToken?: string | null): Promise<SharedHandRead> {
+  return request<SharedHandRead>("/api/social/shared-hands", {
+    method: "POST",
+    body: JSON.stringify({ hand_id: handId, username })
+  }, accessToken);
+}
+
+export function listSharedHands(accessToken?: string | null): Promise<SharedHandRead[]> {
+  return request<SharedHandRead[]>("/api/social/shared-hands", {}, accessToken);
+}
+
+export function markSharedHandRead(shareId: number, accessToken?: string | null): Promise<SharedHandRead> {
+  return request<SharedHandRead>(`/api/social/shared-hands/${shareId}/read`, { method: "POST" }, accessToken);
 }
 
 export function importRange(payload: unknown, accessToken?: string | null): Promise<PreflopRange> {
