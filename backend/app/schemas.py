@@ -120,3 +120,62 @@ class SharedHandRead(BaseModel):
     status: AnalysisStatus | None = None
     created_at: datetime
     read_at: datetime | None = None
+
+
+class StatsOverview(BaseModel):
+    hands_played: int
+
+
+class StatsAnalyzed(BaseModel):
+    hands_analyzed: int
+    preflop_decisions_reviewed: int
+    preflop_correct: int
+    preflop_accuracy: float | None
+    postflop_decisions_reviewed: int
+    postflop_mistakes: int
+    biggest_leak: str
+
+
+class StatsAccuracyRow(BaseModel):
+    label: str
+    decisions: int
+    correct: int
+    accuracy: float | None
+
+
+class StatsMistakeRow(BaseModel):
+    label: str
+    decisions: int
+    mistakes: int
+
+
+class StatsCountRow(BaseModel):
+    label: str
+    count: int
+
+
+class StatsRecent(BaseModel):
+    hands_played_7d: int
+    hands_analyzed_7d: int
+    hands_played_30d: int
+    hands_analyzed_30d: int
+    preflop_accuracy_30d: float | None
+
+
+class StudyRecommendation(BaseModel):
+    label: str
+    detail: str
+    to: str
+
+
+class StatsRead(BaseModel):
+    overall: StatsOverview
+    analyzed: StatsAnalyzed
+    preflop_by_position: list[StatsAccuracyRow]
+    preflop_by_spot: list[StatsAccuracyRow]
+    preflop_mistake_types: list[StatsCountRow]
+    postflop_by_street: list[StatsMistakeRow]
+    postflop_by_action: list[StatsMistakeRow]
+    postflop_by_situation: list[StatsMistakeRow]
+    recent: StatsRecent
+    recommendations: list[StudyRecommendation]

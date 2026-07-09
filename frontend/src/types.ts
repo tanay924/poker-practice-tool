@@ -179,6 +179,65 @@ export interface SharedHandRead {
   read_at: string | null;
 }
 
+export interface StatsOverview {
+  hands_played: number;
+}
+
+export interface StatsAnalyzed {
+  hands_analyzed: number;
+  preflop_decisions_reviewed: number;
+  preflop_correct: number;
+  preflop_accuracy: number | null;
+  postflop_decisions_reviewed: number;
+  postflop_mistakes: number;
+  biggest_leak: string;
+}
+
+export interface StatsAccuracyRow {
+  label: string;
+  decisions: number;
+  correct: number;
+  accuracy: number | null;
+}
+
+export interface StatsMistakeRow {
+  label: string;
+  decisions: number;
+  mistakes: number;
+}
+
+export interface StatsCountRow {
+  label: string;
+  count: number;
+}
+
+export interface StatsRecent {
+  hands_played_7d: number;
+  hands_analyzed_7d: number;
+  hands_played_30d: number;
+  hands_analyzed_30d: number;
+  preflop_accuracy_30d: number | null;
+}
+
+export interface StudyRecommendation {
+  label: string;
+  detail: string;
+  to: string;
+}
+
+export interface MyStats {
+  overall: StatsOverview;
+  analyzed: StatsAnalyzed;
+  preflop_by_position: StatsAccuracyRow[];
+  preflop_by_spot: StatsAccuracyRow[];
+  preflop_mistake_types: StatsCountRow[];
+  postflop_by_street: StatsMistakeRow[];
+  postflop_by_action: StatsMistakeRow[];
+  postflop_by_situation: StatsMistakeRow[];
+  recent: StatsRecent;
+  recommendations: StudyRecommendation[];
+}
+
 export interface PreflopRange {
   id: number;
   name: string;

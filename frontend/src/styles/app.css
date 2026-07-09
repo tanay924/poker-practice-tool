@@ -1129,6 +1129,111 @@ button.compact-button,
   max-width: 1180px;
 }
 
+.stats-page {
+  max-width: 1280px;
+}
+
+.stats-heading-row {
+  align-items: start;
+  display: flex;
+  gap: 16px;
+  justify-content: space-between;
+}
+
+.stats-section {
+  display: grid;
+  gap: 14px;
+}
+
+.stats-section h3,
+.stats-table h4,
+.stats-count-list h4 {
+  color: var(--text);
+  margin: 0;
+}
+
+.stats-card-grid {
+  display: grid;
+  gap: 12px;
+  grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+}
+
+.stats-card-grid.compact {
+  grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+}
+
+.stats-metric-card {
+  background:
+    linear-gradient(180deg, rgba(31, 40, 33, 0.96), rgba(20, 27, 23, 0.96));
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow-md);
+  display: grid;
+  gap: 7px;
+  padding: 15px;
+}
+
+.stats-metric-card strong {
+  color: var(--text);
+  font-size: 1.55rem;
+  line-height: 1;
+}
+
+.stats-leak-panel {
+  display: grid;
+  gap: 6px;
+}
+
+.stats-leak-panel strong {
+  color: var(--text);
+}
+
+.stats-table {
+  display: grid;
+  gap: 10px;
+}
+
+.stats-table table {
+  min-width: 560px;
+}
+
+.stats-count-list {
+  display: grid;
+  gap: 10px;
+}
+
+.stats-count-row,
+.stats-recommendation {
+  align-items: center;
+  display: flex;
+  gap: 12px;
+  justify-content: space-between;
+}
+
+.stats-count-row {
+  border-top: 1px solid var(--line);
+  padding-top: 10px;
+}
+
+.stats-count-row span,
+.stats-recommendation p {
+  color: var(--text-soft);
+}
+
+.stats-count-row strong,
+.stats-recommendation strong {
+  color: var(--text);
+}
+
+.stats-recommendations {
+  display: grid;
+  gap: 12px;
+}
+
+.stats-recommendation p {
+  margin: 5px 0 0;
+}
+
 .social-panel {
   display: grid;
   gap: 14px;
@@ -1873,6 +1978,13 @@ td {
   .social-form,
   .social-row {
     grid-template-columns: 1fr;
+  }
+
+  .stats-heading-row,
+  .stats-count-row,
+  .stats-recommendation {
+    align-items: stretch;
+    flex-direction: column;
   }
 
   .social-row-actions {

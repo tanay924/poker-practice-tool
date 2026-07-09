@@ -15,6 +15,7 @@ import PlayPage from "./pages/PlayPage";
 import PreflopPracticePage from "./pages/PreflopPracticePage";
 import RangesPage from "./pages/RangesPage";
 import SharedHandsPage from "./pages/SharedHandsPage";
+import StatsPage from "./pages/StatsPage";
 
 export default function App() {
   return (
@@ -47,6 +48,7 @@ export default function App() {
           <Route path="/friends" element={<FriendsPage />} />
           <Route path="/ranges" element={<RangesPage />} />
           <Route path="/shared" element={<SharedHandsPage />} />
+          <Route path="/stats" element={<StatsPage />} />
         </Routes>
       </main>
     </div>

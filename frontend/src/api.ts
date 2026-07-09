@@ -6,6 +6,7 @@ import type {
   FriendRequestRead,
   HandCreate,
   HandRead,
+  MyStats,
   NotificationCounts,
   PreflopRange,
   ProfileRead,
@@ -112,6 +113,10 @@ export function listSharedHands(accessToken?: string | null): Promise<SharedHand
 
 export function markSharedHandRead(shareId: number, accessToken?: string | null): Promise<SharedHandRead> {
   return request<SharedHandRead>(`/api/social/shared-hands/${shareId}/read`, { method: "POST" }, accessToken);
+}
+
+export function getMyStats(accessToken?: string | null): Promise<MyStats> {
+  return request<MyStats>("/api/stats/me", {}, accessToken);
 }
 
 export function importRange(payload: unknown, accessToken?: string | null): Promise<PreflopRange> {
