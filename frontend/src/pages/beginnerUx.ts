@@ -34,7 +34,7 @@ export function playGuideSteps(): PlayGuideStep[] {
   return [
     { detail: "Pick random, SB, or BB before the deal.", title: "Choose seat" },
     { detail: "Take each legal action as the hand unfolds.", title: "Play decisions" },
-    { detail: "Save the hand and analyze it after completion.", title: "Review leaks" }
+    { detail: "Finish the hand, then review the feedback.", title: "Review leaks" }
   ];
 }
 

@@ -1,4 +1,4 @@
-export type AnalysisStatus = "queued" | "solving" | "ready" | "failed" | "unsupported";
+export type AnalysisStatus = "queued" | "solving" | "ready" | "failed" | "unsupported" | "cancelled";
 
 export interface ActionEntry {
   street: "preflop" | "flop" | "turn" | "river";
@@ -38,6 +38,9 @@ export interface AnalysisJob {
   created_at: string;
   started_at: string | null;
   finished_at: string | null;
+  lease_expires_at: string | null;
+  heartbeat_at: string | null;
+  cancel_requested_at: string | null;
   error: string | null;
   solver_input_json: Record<string, unknown> | null;
   solver_output_json: SolverOutput | null;
@@ -51,6 +54,11 @@ export interface AnalysisListItem {
   board: string[];
   status: AnalysisStatus;
   error: string | null;
+}
+
+export interface AnalysisPage {
+  items: AnalysisListItem[];
+  next_cursor: string | null;
 }
 
 export interface SolverStreetResult {
@@ -150,6 +158,38 @@ export interface ProfileRead {
   username: string;
 }
 
+export interface AccountExport {
+  exported_at: string;
+  profile: ProfileRead | null;
+  hands: Array<Record<string, unknown>>;
+  analysis_jobs: Array<Record<string, unknown>>;
+  friend_requests: Array<Record<string, unknown>>;
+  friendships: Array<Record<string, unknown>>;
+  shared_hands: Array<Record<string, unknown>>;
+}
+
+export interface AccountDeletion {
+  deleted_hands: number;
+  deleted_analysis_jobs: number;
+  deleted_study_spots: number;
+  deleted_shared_hands: number;
+  deleted_social_rows: number;
+  external_auth_deleted: boolean;
+  message: string;
+}
+
+export interface AnalysisControl {
+  enabled: boolean;
+  message: string;
+  updated_at: string;
+}
+
+export interface GuestSessionAllowance {
+  expires_at: string;
+  analysis_remaining: number;
+  preflop_remaining: number;
+}
+
 export interface FriendRequestRead {
   id: number;
   requester_username: string;
@@ -161,6 +201,23 @@ export interface FriendRequestRead {
 export interface FriendRead {
   user_id: string;
   username: string;
+}
+
+export interface BlockRead {
+  user_id: string;
+  username: string;
+  created_at: string;
+}
+
+export interface ReportRead {
+  id: number;
+  reporter_user_id: string;
+  reported_user_id: string | null;
+  shared_hand_id: number | null;
+  reason: string;
+  details: string | null;
+  status: string;
+  created_at: string;
 }
 
 export interface NotificationCounts {
@@ -185,6 +242,7 @@ export interface StatsOverview {
 
 export interface StatsAnalyzed {
   hands_analyzed: number;
+  sample_size: number;
   preflop_decisions_reviewed: number;
   preflop_correct: number;
   preflop_accuracy: number | null;
@@ -269,6 +327,8 @@ export interface PreflopRange {
   spot: string;
   stack_bb: number;
   source: string;
+  version: string;
+  provenance: string;
   range_json: {
     name: string;
     spot: string;

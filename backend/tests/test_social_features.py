@@ -8,7 +8,7 @@ from sqlalchemy import create_engine
 from sqlalchemy.orm import Session, sessionmaker
 from sqlalchemy.pool import StaticPool
 
-from app.auth import AuthUser, RequestActor, require_actor, require_current_user
+from app.auth import AuthUser, RequestActor, require_actor, require_admin_user, require_current_user
 from app.db import Base, get_db
 from app.main import app
 from app.models import AnalysisJob, Hand
@@ -174,3 +174,43 @@ def test_only_accepted_friends_can_receive_shared_hands(api_client: tuple[TestCl
     detail = client.get(f"/api/analysis/{hand_id}")
     assert detail.status_code == 200
     assert detail.json()["hand"]["id"] == hand_id
+
+    revoked = client.delete(f"/api/social/shared-hands/{shared.json()['id']}")
+    assert revoked.status_code == 204
+    assert client.get("/api/social/shared-hands").json() == []
+
+    set_user("user-a")
+    shared_again = client.post("/api/social/shared-hands", json={"hand_id": hand_id, "username": "Villain"})
+    assert shared_again.status_code == 200
+    removed = client.delete("/api/social/friends/user-b")
+    assert removed.status_code == 204
+
+    set_user("user-b")
+    assert client.get("/api/social/friends").json() == []
+    assert client.get("/api/social/shared-hands").json() == []
+
+
+def test_blocking_prevents_social_contact_and_reports_are_admin_visible(api_client: tuple[TestClient, sessionmaker[Session]]) -> None:
+    client, _ = api_client
+    create_profile(client, "user-a", "Hero")
+    create_profile(client, "user-b", "Villain")
+
+    set_user("user-a")
+    blocked = client.post("/api/social/blocks", json={"username": "Villain"})
+    assert blocked.status_code == 200
+    assert blocked.json()["username"] == "Villain"
+    assert client.get("/api/social/blocks").json()[0]["user_id"] == "user-b"
+    denied_request = client.post("/api/social/friend-requests", json={"username": "Villain"})
+    assert denied_request.status_code == 403
+
+    report = client.post("/api/social/reports", json={"username": "Villain", "reason": "harassment"})
+    assert report.status_code == 200
+    assert report.json()["status"] == "open"
+
+    app.dependency_overrides[require_admin_user] = as_user("admin")
+    reports = client.get("/api/admin/reports")
+    assert reports.status_code == 200
+    assert reports.json()[0]["reason"] == "harassment"
+
+    unblocked = client.delete("/api/social/blocks/user-b")
+    assert unblocked.status_code == 204

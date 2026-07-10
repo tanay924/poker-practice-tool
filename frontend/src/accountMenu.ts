@@ -44,6 +44,7 @@ export function accountMenuModel(state: AccountMenuState): AccountMenuModel {
     const pendingFriendRequests = state.notifications?.pending_friend_requests ?? 0;
     const unreadSharedHands = state.notifications?.unread_shared_hands ?? 0;
     items.push(
+      { label: "Account settings", to: "/settings" },
       { label: "My Stats", to: "/stats" },
       { badge: unreadSharedHands > 0 ? String(unreadSharedHands) : undefined, label: "Shared with me", to: "/shared" },
       { badge: pendingFriendRequests > 0 ? String(pendingFriendRequests) : undefined, label: "Manage friends", to: "/friends" }

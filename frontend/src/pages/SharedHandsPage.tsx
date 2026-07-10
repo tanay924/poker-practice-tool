@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 
-import { listSharedHands, markSharedHandRead } from "../api";
+import { listSharedHands, markSharedHandRead, reportSocialContent, revokeSharedHand } from "../api";
 import { useAuth } from "../auth/AuthContext";
 import type { SharedHandRead } from "../types";
 import { formatSharedBoard } from "./socialViews";
@@ -70,6 +70,31 @@ export default function SharedHandsPage() {
     });
   };
 
+  const revokeShare = async (share: SharedHandRead) => {
+    if (!accessToken || !window.confirm("Remove this shared hand from your library?")) {
+      return;
+    }
+    try {
+      await revokeSharedHand(share.id, accessToken);
+      setItems((current) => current.filter((item) => item.id !== share.id));
+      setError(null);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Could not remove shared hand.");
+    }
+  };
+
+  const reportShare = async (share: SharedHandRead) => {
+    if (!accessToken || !window.confirm("Report this shared hand to the administrator?")) {
+      return;
+    }
+    try {
+      await reportSocialContent({ share_id: share.id, reason: "shared-hand" }, accessToken);
+      setError(null);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Could not submit report.");
+    }
+  };
+
   return (
     <section className="stack social-page">
       <div className="page-heading">
@@ -91,6 +116,7 @@ export default function SharedHandsPage() {
               <th>Status</th>
               <th>Shared</th>
               <th>Open</th>
+              <th>Manage</th>
             </tr>
           </thead>
           <tbody>
@@ -110,6 +136,12 @@ export default function SharedHandsPage() {
                   >
                     {item.status === "ready" ? "Answer sheet" : "Details"}
                   </Link>
+                </td>
+                <td>
+                  <div className="inline-action-row">
+                    <button className="action-danger compact-button" onClick={() => void revokeShare(item)} type="button">Remove</button>
+                    <button className="secondary compact-button" onClick={() => void reportShare(item)} type="button">Report</button>
+                  </div>
                 </td>
               </tr>
             ))}

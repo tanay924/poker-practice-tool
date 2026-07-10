@@ -30,6 +30,15 @@ const items: AnalysisListItem[] = [
     hero_hand: "8s8d",
     job_id: 3,
     status: "failed"
+  },
+  {
+    board: [],
+    created_at: "2026-07-08T10:15:00Z",
+    error: null,
+    hand_id: 70,
+    hero_hand: "AhQh",
+    job_id: 4,
+    status: "cancelled"
   }
 ];
 
@@ -50,12 +59,13 @@ assert.deepEqual(
   [69]
 );
 assert.deepEqual(analysisStatusCounts(items), {
-  all: 3,
+  all: 4,
   failed: 1,
   queued: 0,
   ready: 1,
   solving: 0,
-  unsupported: 1
+  unsupported: 1,
+  cancelled: 1
 });
 
 console.log("analysis page tests passed");

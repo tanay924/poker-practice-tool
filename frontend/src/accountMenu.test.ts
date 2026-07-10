@@ -36,8 +36,8 @@ const signedIn = accountMenuModel({
 
 assert.equal(signedIn.statusText, "Pocket Tens");
 assert.equal(signedIn.triggerLabel, "Account menu, 3 notifications");
-assert.deepEqual(signedIn.items.map((item) => item.label), ["My library", "Customize", "My Stats", "Shared with me", "Manage friends", "Sign out"]);
-assert.deepEqual(signedIn.items.map((item) => item.badge ?? null), [null, null, null, "1", "2", null]);
+assert.deepEqual(signedIn.items.map((item) => item.label), ["My library", "Customize", "Account settings", "My Stats", "Shared with me", "Manage friends", "Sign out"]);
+assert.deepEqual(signedIn.items.map((item) => item.badge ?? null), [null, null, null, null, "1", "2", null]);
 
 const signedInWithoutUsername = accountMenuModel({
   authConfigured: true,
@@ -48,6 +48,6 @@ const signedInWithoutUsername = accountMenuModel({
 });
 
 assert.equal(signedInWithoutUsername.statusText, "Signed in");
-assert.deepEqual(signedInWithoutUsername.items.map((item) => item.label), ["My library", "Customize", "My Stats", "Shared with me", "Manage friends", "Sign out"]);
+assert.deepEqual(signedInWithoutUsername.items.map((item) => item.label), ["My library", "Customize", "Account settings", "My Stats", "Shared with me", "Manage friends", "Sign out"]);
 
 console.log("account menu tests passed");

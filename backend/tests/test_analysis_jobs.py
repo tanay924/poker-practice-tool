@@ -1,13 +1,14 @@
 import asyncio
+from datetime import timedelta
 
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 
-from app.analysis.service import AnalysisQueueLimitError, create_analysis_job, process_next_analysis_job
+from app.analysis.service import AnalysisQueueLimitError, create_analysis_job, process_next_analysis_job, requeue_expired_analysis_jobs
 from app.api.analysis import list_analysis
 from app.auth import RequestActor
 from app.db import Base
-from app.models import AnalysisJob, Hand
+from app.models import AnalysisJob, Hand, utc_now
 
 
 class BlankFailureSolver:
@@ -134,6 +135,62 @@ def test_failed_analysis_job_is_requeued_for_retry() -> None:
     assert len(jobs) == 1
 
 
+def test_cancelled_analysis_job_is_requeued_for_retry() -> None:
+    engine = create_engine("sqlite:///:memory:", connect_args={"check_same_thread": False})
+    TestingSession = sessionmaker(bind=engine, autoflush=False, autocommit=False)
+    Base.metadata.create_all(bind=engine)
+
+    with TestingSession() as db:
+        hand = make_integrated_hand()
+        db.add(hand)
+        db.commit()
+        db.refresh(hand)
+
+        cancelled = AnalysisJob(hand_id=hand.id, status="cancelled", finished_at=utc_now())
+        db.add(cancelled)
+        db.commit()
+        db.refresh(cancelled)
+
+        retried = create_analysis_job(db, hand.id)
+
+    assert retried.id == cancelled.id
+    assert retried.status == "queued"
+    assert retried.finished_at is None
+
+
+def test_expired_worker_lease_returns_job_to_queue() -> None:
+    engine = create_engine("sqlite:///:memory:", connect_args={"check_same_thread": False})
+    TestingSession = sessionmaker(bind=engine, autoflush=False, autocommit=False)
+    Base.metadata.create_all(bind=engine)
+
+    with TestingSession() as db:
+        hand = make_integrated_hand()
+        db.add(hand)
+        db.commit()
+        db.refresh(hand)
+        job = AnalysisJob(
+            hand_id=hand.id,
+            status="solving",
+            worker_id="dead-worker",
+            started_at=utc_now() - timedelta(minutes=20),
+            claimed_at=utc_now() - timedelta(minutes=20),
+            lease_expires_at=utc_now() - timedelta(minutes=1),
+            heartbeat_at=utc_now() - timedelta(minutes=10),
+        )
+        db.add(job)
+        db.commit()
+
+        count = requeue_expired_analysis_jobs(db)
+        db.refresh(job)
+
+    assert count == 1
+    assert job.status == "queued"
+    assert job.worker_id is None
+    assert job.lease_expires_at is None
+    assert job.heartbeat_at is None
+    assert job.error == "Worker lease expired; analysis returned to the queue."
+
+
 def test_user_cannot_queue_more_than_five_active_analysis_jobs() -> None:
     engine = create_engine("sqlite:///:memory:", connect_args={"check_same_thread": False})
     TestingSession = sessionmaker(bind=engine, autoflush=False, autocommit=False)
@@ -192,6 +249,35 @@ def test_processing_uses_global_fifo_order_across_users() -> None:
 
     assert job is not None
     assert job.hand_id == hand_a_id
+
+
+def test_processing_can_be_limited_to_a_specific_job_set() -> None:
+    engine = create_engine("sqlite:///:memory:", connect_args={"check_same_thread": False})
+    TestingSession = sessionmaker(bind=engine, autoflush=False, autocommit=False)
+    Base.metadata.create_all(bind=engine)
+
+    with TestingSession() as db:
+        hand_a = make_integrated_hand()
+        hand_b = make_integrated_hand()
+        db.add_all([hand_a, hand_b])
+        db.commit()
+        db.refresh(hand_a)
+        db.refresh(hand_b)
+        job_a = AnalysisJob(hand_id=hand_a.id, status="queued")
+        job_b = AnalysisJob(hand_id=hand_b.id, status="queued")
+        db.add_all([job_a, job_b])
+        db.commit()
+        db.refresh(job_a)
+        db.refresh(job_b)
+
+        selected = asyncio.run(process_next_analysis_job(db, solver=BlankFailureSolver(), job_ids={job_b.id}))
+        remaining = db.get(AnalysisJob, job_a.id)
+
+    assert selected is not None
+    assert selected.id == job_b.id
+    assert selected.status == "failed"
+    assert remaining is not None
+    assert remaining.status == "queued"
 
 
 def test_blank_solver_exception_records_exception_type() -> None:

@@ -1,15 +1,19 @@
 from __future__ import annotations
 
+import asyncio
 import copy
 import hashlib
 import json
+import os
+from datetime import timedelta
 from typing import Any
 
 from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 from app.analysis.decision_details import add_decision_details
-from app.models import AnalysisJob, Hand, SolverCache, utc_now
+from app.decision_facts import upsert_decision_facts_for_job
+from app.models import AnalysisControl, AnalysisJob, GuestSession, Hand, SolverCache, utc_now
 from app.preflop.analysis import (
     analyze_preflop_actions,
     derive_postflop_branch,
@@ -25,6 +29,7 @@ from app.study_spots import upsert_study_spots_for_job
 MAX_ACTIVE_ANALYSIS_JOBS_PER_USER = 5
 MAX_GUEST_ANALYSIS_JOBS = 5
 ACTIVE_JOB_STATUSES = {"queued", "solving"}
+DEFAULT_QUEUE_LEASE_SECONDS = 900
 
 
 class AnalysisQueueLimitError(RuntimeError):
@@ -40,12 +45,22 @@ class GuestAnalysisLimitError(RuntimeError):
         super().__init__(f"Free analysis trial used. Sign in to analyze more hands.")
 
 
+class AnalysisPausedError(RuntimeError):
+    def __init__(self, message: str = "Analysis is temporarily paused. You can keep practising and try again later.") -> None:
+        super().__init__(message)
+
+
 def create_analysis_job(
     db: Session,
     hand_id: int,
     user_id: str | None = None,
     guest_session_id: str | None = None,
 ) -> AnalysisJob:
+    control = db.get(AnalysisControl, 1)
+    if os.getenv("ANALYSIS_SUBMISSIONS_ENABLED", "1").strip().lower() in {"0", "false", "no"}:
+        raise AnalysisPausedError()
+    if control is not None and not control.enabled:
+        raise AnalysisPausedError(control.message)
     hand = db.get(Hand, hand_id)
     if hand is None:
         raise ValueError(f"Hand {hand_id} does not exist")
@@ -56,7 +71,7 @@ def create_analysis_job(
 
     existing = db.query(AnalysisJob).filter(AnalysisJob.hand_id == hand_id).first()
     if existing:
-        if existing.status in {"failed", "unsupported"}:
+        if existing.status in {"failed", "unsupported", "cancelled"}:
             _ensure_queue_slot_available(db, hand.user_id, hand.guest_session_id)
             now = utc_now()
             existing.status = "queued"
@@ -65,6 +80,9 @@ def create_analysis_job(
             existing.queued_at = now
             existing.started_at = None
             existing.claimed_at = None
+            existing.lease_expires_at = None
+            existing.heartbeat_at = None
+            existing.cancel_requested_at = None
             existing.finished_at = None
             existing.worker_id = None
             existing.error = None
@@ -84,6 +102,10 @@ def create_analysis_job(
         queued_at=now,
     )
     db.add(job)
+    if guest_session_id:
+        guest_session = db.get(GuestSession, guest_session_id)
+        if guest_session is not None:
+            guest_session.analysis_trials_used = (guest_session.analysis_trials_used or 0) + 1
     db.commit()
     db.refresh(job)
     return job
@@ -166,42 +188,56 @@ def prepare_solver_input(db: Session, hand: Hand, solver: SolverAdapter) -> dict
 
 
 def compute_cache_key(solver_input: dict[str, Any]) -> str:
-    payload = json.dumps(solver_input, sort_keys=True, separators=(",", ":"))
+    cache_identity = {
+        key: value
+        for key, value in solver_input.items()
+        if key not in {"hand_id", "result"}
+    }
+    payload = json.dumps(cache_identity, sort_keys=True, separators=(",", ":"))
     return hashlib.sha256(payload.encode("utf-8")).hexdigest()
 
 
 async def process_next_analysis_job(
     db: Session,
     solver: SolverAdapter | None = None,
-    worker_id: str = "in-process-worker",
+    worker_id: str | None = None,
+    job_ids: set[int] | None = None,
 ) -> AnalysisJob | None:
-    job = (
-        db.query(AnalysisJob)
-        .filter(AnalysisJob.status == "queued")
-        .order_by(func.coalesce(AnalysisJob.queued_at, AnalysisJob.created_at).asc(), AnalysisJob.id.asc())
-        .with_for_update(skip_locked=True)
-        .first()
-    )
+    requeue_expired_analysis_jobs(db)
+    worker_id = worker_id or f"worker-{os.getpid()}"
+    query = db.query(AnalysisJob).filter(AnalysisJob.status == "queued")
+    if job_ids is not None:
+        query = query.filter(AnalysisJob.id.in_(job_ids))
+    job = query.order_by(
+        func.coalesce(AnalysisJob.queued_at, AnalysisJob.created_at).asc(),
+        AnalysisJob.id.asc(),
+    ).with_for_update(skip_locked=True).first()
     if job is None:
         return None
 
+    job_id = job.id
+    hand_id = job.hand_id
     solver = solver or create_solver_from_env()
     job.status = "solving"
     now = utc_now()
     job.started_at = now
     job.claimed_at = now
+    job.lease_expires_at = now + timedelta(seconds=queue_lease_seconds())
+    job.heartbeat_at = now
+    job.cancel_requested_at = None
     job.worker_id = worker_id
     job.attempt_count = (job.attempt_count or 0) + 1
     job.error = None
     db.commit()
     db.refresh(job)
+    db.commit()
 
     solver_input: dict[str, Any] | None = None
 
     try:
-        hand = db.get(Hand, job.hand_id)
+        hand = db.get(Hand, hand_id)
         if hand is None:
-            raise ValueError(f"Hand {job.hand_id} does not exist")
+            raise ValueError(f"Hand {hand_id} does not exist")
 
         solver_input = prepare_solver_input(db, hand, solver)
         cache_key = compute_cache_key(solver_input)
@@ -219,7 +255,22 @@ async def process_next_analysis_job(
                 )
             )
         else:
-            solver_output = await solver.solve(solver_input)
+            db.commit()
+            solver_output = await _solve_with_heartbeat(solver, solver_input, job_id, worker_id)
+            job = db.get(AnalysisJob, job_id)
+            hand = db.get(Hand, hand_id)
+            if job is None or hand is None:
+                raise ValueError(f"Seeded analysis records disappeared for job {job_id}")
+            if job.cancel_requested_at is not None:
+                job.status = "cancelled"
+                job.finished_at = utc_now()
+                job.lease_expires_at = None
+                job.heartbeat_at = None
+                job.worker_id = None
+                job.error = None
+                db.commit()
+                db.refresh(job)
+                return job
             solver_output = _merge_preflop_output(solver_output, solver_input)
             solver_output = _with_cache_hit(solver_output, hit=False)
             db.add(
@@ -235,34 +286,46 @@ async def process_next_analysis_job(
         job.solver_output_json = solver_output
         job.status = "ready"
         job.finished_at = utc_now()
+        job.lease_expires_at = None
+        job.heartbeat_at = None
         upsert_study_spots_for_job(db, hand, job, commit=False)
+        upsert_decision_facts_for_job(db, hand, job, commit=False)
         db.commit()
         db.refresh(job)
         return job
     except UnsupportedAnalysisError as exc:
+        job = db.get(AnalysisJob, job_id) or job
         job.status = "unsupported"
         job.error = _exception_message(exc)
         if solver_input is not None:
             job.solver_input_json = solver_input
             job.solver_output_json = _preflop_only_output(solver_input, postflop_status="unsupported", postflop_error=job.error)
         job.finished_at = utc_now()
+        job.lease_expires_at = None
+        job.heartbeat_at = None
         db.commit()
         db.refresh(job)
         return job
     except SolverExecutionError as exc:
+        job = db.get(AnalysisJob, job_id) or job
         job.status = "failed"
         job.error = _exception_message(exc)
         if solver_input is not None:
             job.solver_input_json = solver_input
             job.solver_output_json = _preflop_only_output(solver_input, postflop_status="failed", postflop_error=job.error)
         job.finished_at = utc_now()
+        job.lease_expires_at = None
+        job.heartbeat_at = None
         db.commit()
         db.refresh(job)
         return job
     except Exception as exc:
+        job = db.get(AnalysisJob, job_id) or job
         job.status = "failed"
         job.error = _exception_message(exc)
         job.finished_at = utc_now()
+        job.lease_expires_at = None
+        job.heartbeat_at = None
         db.commit()
         db.refresh(job)
         return job
@@ -322,3 +385,68 @@ def _exception_message(exc: Exception) -> str:
     if message:
         return message
     return type(exc).__name__
+
+
+def requeue_expired_analysis_jobs(db: Session) -> int:
+    now = utc_now()
+    expired = (
+        db.query(AnalysisJob)
+        .filter(
+            AnalysisJob.status == "solving",
+            AnalysisJob.lease_expires_at.isnot(None),
+            AnalysisJob.lease_expires_at < now,
+        )
+        .all()
+    )
+    for job in expired:
+        job.status = "queued"
+        job.queued_at = now
+        job.started_at = None
+        job.claimed_at = None
+        job.lease_expires_at = None
+        job.heartbeat_at = None
+        job.worker_id = None
+        job.error = "Worker lease expired; analysis returned to the queue."
+    if expired:
+        db.commit()
+    return len(expired)
+
+
+def queue_lease_seconds() -> int:
+    try:
+        return max(60, min(int(os.getenv("POKER_TRAINER_QUEUE_LEASE_SECONDS", str(DEFAULT_QUEUE_LEASE_SECONDS))), 86_400))
+    except ValueError:
+        return DEFAULT_QUEUE_LEASE_SECONDS
+
+
+async def _solve_with_heartbeat(
+    solver: SolverAdapter,
+    solver_input: dict[str, Any],
+    job_id: int,
+    worker_id: str,
+) -> dict[str, Any]:
+    heartbeat_task = asyncio.create_task(_heartbeat_loop(job_id, worker_id))
+    try:
+        return await solver.solve(solver_input)
+    finally:
+        heartbeat_task.cancel()
+        try:
+            await heartbeat_task
+        except asyncio.CancelledError:
+            pass
+
+
+async def _heartbeat_loop(job_id: int, worker_id: str) -> None:
+    from app.db import SessionLocal
+
+    interval = max(15, min(60, queue_lease_seconds() // 3))
+    while True:
+        await asyncio.sleep(interval)
+        with SessionLocal() as heartbeat_db:
+            job = heartbeat_db.get(AnalysisJob, job_id)
+            if job is None or job.status != "solving" or job.worker_id != worker_id:
+                return
+            now = utc_now()
+            job.heartbeat_at = now
+            job.lease_expires_at = now + timedelta(seconds=queue_lease_seconds())
+            heartbeat_db.commit()

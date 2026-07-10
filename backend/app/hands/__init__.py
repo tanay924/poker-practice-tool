@@ -1,0 +1,1 @@
+"""Hand-domain validation helpers."""

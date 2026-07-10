@@ -43,6 +43,16 @@ export function guestTrialMessage(snapshot: GuestTrialSnapshot, kind: GuestTrial
   return `${snapshot.remaining} free ${noun} remaining.`;
 }
 
+export function guestTrialSnapshotFromRemaining(remaining: number): GuestTrialSnapshot {
+  const safeRemaining = Math.max(0, Math.min(GUEST_TRIAL_LIMIT, Math.floor(remaining)));
+  return {
+    limit: GUEST_TRIAL_LIMIT,
+    limitReached: safeRemaining === 0,
+    remaining: safeRemaining,
+    used: GUEST_TRIAL_LIMIT - safeRemaining
+  };
+}
+
 export function getOrCreateGuestSessionId(storage: StorageLike = window.localStorage): string {
   const existing = storage.getItem(GUEST_SESSION_KEY);
   if (existing) {

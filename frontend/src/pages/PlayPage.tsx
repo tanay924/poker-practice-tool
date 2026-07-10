@@ -1,11 +1,11 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 
-import { analyzeHand, getAnalysis, saveHand } from "../api";
+import { analyzeHand, getAnalysis, getGuestSessionAllowance, saveHand } from "../api";
 import { useAuth } from "../auth/AuthContext";
 import PlayingCard from "../components/PlayingCard";
 import SettlementSummaryPanel from "../components/SettlementSummaryPanel";
-import { getOrCreateGuestSessionId, guestTrialSnapshot, recordGuestTrialUse, type GuestTrialSnapshot } from "../guestTrial";
+import { getOrCreateGuestSessionId, guestTrialSnapshot, guestTrialSnapshotFromRemaining, recordGuestTrialUse, type GuestTrialSnapshot } from "../guestTrial";
 import type { AnalysisJob, HandRead } from "../types";
 import { applyHeroAction, formatActionEntry, legalHeroActions, startNewHand, toHandPayload, type SeatMode, type TrainerAction } from "../poker/engine";
 import { settlementForTrainerState } from "../poker/settlement";
@@ -28,8 +28,26 @@ export default function PlayPage() {
   const [analysisJob, setAnalysisJob] = useState<AnalysisJob | null>(null);
   const [guestAnalysisTrial, setGuestAnalysisTrial] = useState<GuestTrialSnapshot>(() => readGuestAnalysisTrial());
   const [saveAttempted, setSaveAttempted] = useState(false);
+  const [saveIdempotencyKey, setSaveIdempotencyKey] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (authLoading || user) {
+      return;
+    }
+    let cancelled = false;
+    getGuestSessionAllowance()
+      .then((allowance) => {
+        if (!cancelled) {
+          setGuestAnalysisTrial(guestTrialSnapshotFromRemaining(allowance.analysis_remaining));
+        }
+      })
+      .catch(() => undefined);
+    return () => {
+      cancelled = true;
+    };
+  }, [authLoading, user]);
 
   const legalActions = useMemo(() => legalHeroActions(hand), [hand]);
   const actionShortcuts = useMemo(
@@ -59,20 +77,24 @@ export default function PlayPage() {
     }
 
     setSaveAttempted(true);
+    const idempotencyKey = saveIdempotencyKey ?? createIdempotencyKey();
+    if (!saveIdempotencyKey) {
+      setSaveIdempotencyKey(idempotencyKey);
+    }
     const auth = accessToken ? accessToken : { guestSessionId: getOrCreateGuestSessionId() };
     if (!accessToken && guestAnalysisTrial.limitReached) {
       return;
     }
 
     setSaving(true);
-    saveHand(toHandPayload(hand), auth)
+    saveHand(toHandPayload(hand), auth, idempotencyKey)
       .then((created) => {
         setSavedHand(created);
         setError(null);
       })
       .catch((err: Error) => setError(err.message))
       .finally(() => setSaving(false));
-  }, [accessToken, authLoading, guestAnalysisTrial.limitReached, hand, saveAttempted]);
+  }, [accessToken, authLoading, guestAnalysisTrial.limitReached, hand, saveAttempted, saveIdempotencyKey]);
 
   useEffect(() => {
     if (!savedHand) {
@@ -110,6 +132,7 @@ export default function PlayPage() {
     setSavedHand(null);
     setAnalysisJob(null);
     setSaveAttempted(false);
+    setSaveIdempotencyKey(null);
     setSaving(false);
     setError(null);
   }, [seatMode]);
@@ -307,6 +330,13 @@ function readSeatMode(): SeatMode {
 
 function writeSeatMode(mode: SeatMode) {
   window.localStorage.setItem(SEAT_MODE_STORAGE_KEY, mode);
+}
+
+function createIdempotencyKey(): string {
+  if (typeof crypto !== "undefined" && "randomUUID" in crypto) {
+    return `hand-${crypto.randomUUID()}`;
+  }
+  return `hand-${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}`;
 }
 
 function readGuestAnalysisTrial(): GuestTrialSnapshot {

@@ -12,6 +12,7 @@ from app.auth import AuthUser, RequestActor, require_actor, require_current_user
 from app.db import Base, get_db
 from app.main import app
 from app.models import AnalysisJob, Hand
+from app.study_spots import upsert_study_spots_for_job
 
 
 def hand_payload(hero_cards: str = "AsKd") -> dict[str, object]:
@@ -108,25 +109,26 @@ def test_similar_study_spots_use_global_anonymized_ready_analyses(api_client: tu
         db.commit()
         db.refresh(source_hand)
         db.refresh(global_hand)
-        db.add_all(
-            [
-                AnalysisJob(
-                    hand_id=source_hand.id,
-                    user_id="user-a",
-                    status="ready",
-                    solver_input_json=solver_input(),
-                    solver_output_json=solver_output("AsKd"),
-                ),
-                AnalysisJob(
-                    hand_id=global_hand.id,
-                    user_id="user-b",
-                    status="ready",
-                    solver_input_json=solver_input(),
-                    solver_output_json=solver_output("AhKh"),
-                ),
-            ]
+        source_job = AnalysisJob(
+            hand_id=source_hand.id,
+            user_id="user-a",
+            status="ready",
+            solver_input_json=solver_input(),
+            solver_output_json=solver_output("AsKd"),
         )
+        global_job = AnalysisJob(
+            hand_id=global_hand.id,
+            user_id="user-b",
+            status="ready",
+            solver_input_json=solver_input(),
+            solver_output_json=solver_output("AhKh"),
+        )
+        db.add_all([source_job, global_job])
         db.commit()
+        db.refresh(source_job)
+        db.refresh(global_job)
+        upsert_study_spots_for_job(db, source_hand, source_job)
+        upsert_study_spots_for_job(db, global_hand, global_job)
         source_hand_id = source_hand.id
 
     set_user("user-a")
@@ -161,3 +163,33 @@ def test_similar_study_spots_require_visible_source_hand(api_client: tuple[TestC
     response = client.get(f"/api/study-spots/similar?hand_id={hand_id}&street=flop")
 
     assert response.status_code == 404
+
+
+def test_private_study_spots_are_not_added_to_global_candidates(
+    api_client: tuple[TestClient, sessionmaker[Session]],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    client, TestingSession = api_client
+    monkeypatch.setenv("POKER_TRAINER_PUBLIC_STUDY_SPOTS_ENABLED", "0")
+    with TestingSession() as db:
+        source_hand = Hand(user_id="user-a", **hand_payload("AsKd"))
+        candidate_hand = Hand(user_id="user-b", **hand_payload("AhKh"))
+        db.add_all([source_hand, candidate_hand])
+        db.commit()
+        db.refresh(source_hand)
+        db.refresh(candidate_hand)
+        source_job = AnalysisJob(hand_id=source_hand.id, user_id="user-a", status="ready", solver_input_json=solver_input(), solver_output_json=solver_output())
+        candidate_job = AnalysisJob(hand_id=candidate_hand.id, user_id="user-b", status="ready", solver_input_json=solver_input(), solver_output_json=solver_output("AhKh"))
+        db.add_all([source_job, candidate_job])
+        db.commit()
+        db.refresh(source_job)
+        db.refresh(candidate_job)
+        upsert_study_spots_for_job(db, source_hand, source_job)
+        upsert_study_spots_for_job(db, candidate_hand, candidate_job)
+        source_hand_id = source_hand.id
+
+    set_user("user-a")
+    response = client.get(f"/api/study-spots/similar?hand_id={source_hand_id}&street=flop&node=Flop%20facing%20bet")
+
+    assert response.status_code == 200
+    assert response.json()["spots"] == []

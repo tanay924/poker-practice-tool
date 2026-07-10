@@ -1,20 +1,24 @@
 from __future__ import annotations
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Response, status
 from sqlalchemy import and_, or_
 from sqlalchemy.orm import Session
 
 from app.api.analysis import visible_board_for_history
 from app.auth import AuthUser, require_current_user
 from app.db import get_db
-from app.models import AnalysisJob, FriendRequest, Friendship, Hand, SharedHand, UserProfile, utc_now
+from app.models import AnalysisJob, FriendRequest, Friendship, Hand, SharedHand, UserBlock, UserProfile, UserReport, utc_now
 from app.schemas import (
     FriendRead,
+    BlockRead,
+    BlockUserRequest,
     FriendRequestCreate,
     FriendRequestRead,
     NotificationCounts,
     ProfileRead,
     ProfileUpsertRequest,
+    ReportCreate,
+    ReportRead,
     ShareHandRequest,
     SharedHandRead,
 )
@@ -74,6 +78,8 @@ def create_friend_request(
         raise HTTPException(status_code=404, detail="User not found")
     if recipient.user_id == current_user.user_id:
         raise HTTPException(status_code=400, detail="You cannot add yourself")
+    if blocked_between(db, current_user.user_id, recipient.user_id):
+        raise HTTPException(status_code=403, detail="This user is unavailable")
     if friendship_between(db, current_user.user_id, recipient.user_id) is not None:
         raise HTTPException(status_code=409, detail="You are already friends")
 
@@ -187,6 +193,89 @@ def list_friends(
     ]
 
 
+@router.get("/blocks", response_model=list[BlockRead])
+def list_blocks(
+    db: Session = Depends(get_db),
+    current_user: AuthUser = Depends(require_current_user),
+) -> list[BlockRead]:
+    rows = db.query(UserBlock).filter(UserBlock.blocker_user_id == current_user.user_id).order_by(UserBlock.created_at.desc()).all()
+    profiles = db.query(UserProfile).filter(UserProfile.user_id.in_([row.blocked_user_id for row in rows])).all() if rows else []
+    names = {profile.user_id: profile.username for profile in profiles}
+    return [
+        BlockRead(user_id=row.blocked_user_id, username=names.get(row.blocked_user_id, "Unknown"), created_at=row.created_at)
+        for row in rows
+    ]
+
+
+@router.post("/blocks", response_model=BlockRead)
+def block_user(
+    payload: BlockUserRequest,
+    db: Session = Depends(get_db),
+    current_user: AuthUser = Depends(require_current_user),
+) -> BlockRead:
+    recipient = profile_by_username(db, payload.username)
+    if recipient is None:
+        raise HTTPException(status_code=404, detail="User not found")
+    if recipient.user_id == current_user.user_id:
+        raise HTTPException(status_code=400, detail="You cannot block yourself")
+    block = db.query(UserBlock).filter(
+        UserBlock.blocker_user_id == current_user.user_id,
+        UserBlock.blocked_user_id == recipient.user_id,
+    ).first()
+    if block is None:
+        block = UserBlock(blocker_user_id=current_user.user_id, blocked_user_id=recipient.user_id)
+        db.add(block)
+    friendship = friendship_between(db, current_user.user_id, recipient.user_id)
+    if friendship is not None:
+        db.delete(friendship)
+    db.query(SharedHand).filter(
+        or_(
+            and_(SharedHand.owner_user_id == current_user.user_id, SharedHand.recipient_user_id == recipient.user_id),
+            and_(SharedHand.owner_user_id == recipient.user_id, SharedHand.recipient_user_id == current_user.user_id),
+        )
+    ).delete(synchronize_session=False)
+    db.commit()
+    db.refresh(block)
+    return BlockRead(user_id=recipient.user_id, username=recipient.username, created_at=block.created_at)
+
+
+@router.delete("/blocks/{user_id}", status_code=204)
+def unblock_user(
+    user_id: str,
+    db: Session = Depends(get_db),
+    current_user: AuthUser = Depends(require_current_user),
+) -> Response:
+    block = db.query(UserBlock).filter(
+        UserBlock.blocker_user_id == current_user.user_id,
+        UserBlock.blocked_user_id == user_id,
+    ).first()
+    if block is None:
+        raise HTTPException(status_code=404, detail="Block not found")
+    db.delete(block)
+    db.commit()
+    return Response(status_code=204)
+
+
+@router.delete("/friends/{friend_user_id}", status_code=status.HTTP_204_NO_CONTENT)
+def remove_friend(
+    friend_user_id: str,
+    db: Session = Depends(get_db),
+    current_user: AuthUser = Depends(require_current_user),
+) -> Response:
+    friendship = friendship_between(db, current_user.user_id, friend_user_id)
+    if friendship is None:
+        raise HTTPException(status_code=404, detail="Friendship not found")
+    db.delete(friendship)
+    db.query(SharedHand).filter(
+        or_(
+            and_(SharedHand.owner_user_id == current_user.user_id, SharedHand.recipient_user_id == friend_user_id),
+            and_(SharedHand.owner_user_id == friend_user_id, SharedHand.recipient_user_id == current_user.user_id),
+        )
+    ).delete(synchronize_session=False)
+    db.commit()
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+
 @router.get("/notifications", response_model=NotificationCounts)
 def notification_counts(
     db: Session = Depends(get_db),
@@ -223,6 +312,8 @@ def share_hand(
         raise HTTPException(status_code=404, detail="User not found")
     if recipient.user_id == current_user.user_id:
         raise HTTPException(status_code=400, detail="You cannot share a hand with yourself")
+    if blocked_between(db, current_user.user_id, recipient.user_id):
+        raise HTTPException(status_code=403, detail="This user is unavailable")
     if friendship_between(db, current_user.user_id, recipient.user_id) is None:
         raise HTTPException(status_code=403, detail="You can only share hands with accepted friends")
 
@@ -277,6 +368,56 @@ def mark_shared_hand_read(
     return shared_hand_read(db, share)
 
 
+@router.delete("/shared-hands/{share_id}", status_code=status.HTTP_204_NO_CONTENT)
+def revoke_shared_hand(
+    share_id: int,
+    db: Session = Depends(get_db),
+    current_user: AuthUser = Depends(require_current_user),
+) -> Response:
+    share = db.get(SharedHand, share_id)
+    if share is None or current_user.user_id not in {share.owner_user_id, share.recipient_user_id}:
+        raise HTTPException(status_code=404, detail="Shared hand not found")
+    db.delete(share)
+    db.commit()
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+
+@router.post("/reports", response_model=ReportRead)
+def create_report(
+    payload: ReportCreate,
+    db: Session = Depends(get_db),
+    current_user: AuthUser = Depends(require_current_user),
+) -> ReportRead:
+    reported_user_id = None
+    if payload.username:
+        reported = profile_by_username(db, payload.username)
+        if reported is None:
+            raise HTTPException(status_code=404, detail="User not found")
+        if reported.user_id == current_user.user_id:
+            raise HTTPException(status_code=400, detail="You cannot report yourself")
+        reported_user_id = reported.user_id
+    if payload.share_id is None and reported_user_id is None:
+        raise HTTPException(status_code=422, detail="A username or shared hand is required")
+    if payload.share_id is not None:
+        share = db.get(SharedHand, payload.share_id)
+        if share is None or current_user.user_id not in {share.owner_user_id, share.recipient_user_id}:
+            raise HTTPException(status_code=404, detail="Shared hand not found")
+        reported_user_id = reported_user_id or (
+            share.owner_user_id if share.owner_user_id != current_user.user_id else share.recipient_user_id
+        )
+    report = UserReport(
+        reporter_user_id=current_user.user_id,
+        reported_user_id=reported_user_id,
+        shared_hand_id=payload.share_id,
+        reason=payload.reason.strip(),
+        details=payload.details.strip() if payload.details else None,
+    )
+    db.add(report)
+    db.commit()
+    db.refresh(report)
+    return report
+
+
 def normalize_username(username: str) -> str:
     return " ".join(username.strip().split())
 
@@ -303,6 +444,15 @@ def profile_read(profile: UserProfile) -> ProfileRead:
 def friendship_between(db: Session, first_user_id: str, second_user_id: str) -> Friendship | None:
     user_a_id, user_b_id = sorted([first_user_id, second_user_id])
     return db.query(Friendship).filter(Friendship.user_a_id == user_a_id, Friendship.user_b_id == user_b_id).first()
+
+
+def blocked_between(db: Session, first_user_id: str, second_user_id: str) -> bool:
+    return db.query(UserBlock).filter(
+        or_(
+            and_(UserBlock.blocker_user_id == first_user_id, UserBlock.blocked_user_id == second_user_id),
+            and_(UserBlock.blocker_user_id == second_user_id, UserBlock.blocked_user_id == first_user_id),
+        )
+    ).first() is not None
 
 
 def friend_request_read(db: Session, request: FriendRequest) -> FriendRequestRead:

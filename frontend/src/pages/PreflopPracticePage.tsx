@@ -1,11 +1,12 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 
 import { Link } from "react-router-dom";
 
 import { useAuth } from "../auth/AuthContext";
+import { consumeGuestPreflopTrial, getGuestSessionAllowance } from "../api";
 import PlayingCard from "../components/PlayingCard";
 import SettlementSummaryPanel from "../components/SettlementSummaryPanel";
-import { guestTrialMessage, guestTrialSnapshot, recordGuestTrialUse, type GuestTrialSnapshot } from "../guestTrial";
+import { guestTrialMessage, guestTrialSnapshot, guestTrialSnapshotFromRemaining, recordGuestTrialUse, type GuestTrialSnapshot } from "../guestTrial";
 import {
   actionLabel,
   answerCurrentDecision,
@@ -29,6 +30,7 @@ import { historyEntryDisplay } from "../preflop/historyDisplay";
 import { listBundledPreflopRanges } from "../preflop/rangeData";
 import { settlementForPreflopRound } from "../preflop/settlement";
 import { formatBb } from "../settlement";
+import { preflopSessionReviewFor } from "./preflopSessionReview";
 
 interface SessionStats {
   correctDecisions: number;
@@ -40,6 +42,7 @@ export default function PreflopPracticePage() {
   const { loading: authLoading, user } = useAuth();
   const [practiceSettings, setPracticeSettings] = useState<PreflopPracticeSettings>(DEFAULT_PRACTICE_SETTINGS);
   const [round, setRound] = useState<PreflopRoundState>(() => startPreflopRound(practiceSettingsToStartOptions(DEFAULT_PRACTICE_SETTINGS)));
+  const roundRef = useRef<PreflopRoundState | null>(null);
   const [stats, setStats] = useState<SessionStats>({ correctDecisions: 0, hands: 0, totalDecisions: 0 });
   const [guestPreflopTrial, setGuestPreflopTrial] = useState<GuestTrialSnapshot>(() => readGuestPreflopTrial());
   const ranges = useMemo(() => listBundledPreflopRanges(), []);
@@ -50,6 +53,25 @@ export default function PreflopPracticePage() {
   const villainStack = settlement ? formatBb(settlement.opponentAfterBb) : "100bb";
   const activePracticeLabel = practiceLabel(practiceSettings);
   const guestTrialLocked = !authLoading && !user && guestPreflopTrial.limitReached;
+  const sessionReview = preflopSessionReviewFor(round);
+
+  // The local snapshot keeps the UI responsive; the server allowance remains authoritative.
+  useEffect(() => {
+    if (authLoading || user || guestPreflopTrial.used > 0) {
+      return;
+    }
+    let cancelled = false;
+    getGuestSessionAllowance()
+      .then((allowance) => {
+        if (!cancelled) {
+          setGuestPreflopTrial(guestTrialSnapshotFromRemaining(allowance.preflop_remaining));
+        }
+      })
+      .catch(() => undefined);
+    return () => {
+      cancelled = true;
+    };
+  }, [authLoading, user]);
 
   const recordRoundIfComplete = (nextRound: PreflopRoundState, previousRound: PreflopRoundState) => {
     if (!nextRound.isComplete || previousRound.isComplete) {
@@ -57,6 +79,9 @@ export default function PreflopPracticePage() {
     }
     if (!authLoading && !user) {
       setGuestPreflopTrial(recordGuestTrialUse("preflop"));
+      void consumeGuestPreflopTrial()
+        .then((allowance) => setGuestPreflopTrial(guestTrialSnapshotFromRemaining(allowance.preflop_remaining)))
+        .catch(() => undefined);
     }
     setStats((current) => ({
       correctDecisions: current.correctDecisions + nextRound.correctCount,
@@ -69,18 +94,23 @@ export default function PreflopPracticePage() {
     if (guestTrialLocked) {
       return;
     }
-    setRound((current) => {
-      const nextRound = answerCurrentDecision(current, action);
-      recordRoundIfComplete(nextRound, current);
-      return nextRound;
-    });
+    const current = roundRef.current ?? round;
+    if (!current.currentDecision) {
+      return;
+    }
+    const nextRound = answerCurrentDecision(current, action);
+    roundRef.current = nextRound;
+    setRound(nextRound);
+    recordRoundIfComplete(nextRound, current);
   };
 
   const dealNext = (settings = practiceSettings) => {
     if (guestTrialLocked) {
       return;
     }
-    setRound(startPreflopRound(practiceSettingsToStartOptions(settings)));
+    const nextRound = startPreflopRound(practiceSettingsToStartOptions(settings));
+    roundRef.current = nextRound;
+    setRound(nextRound);
   };
 
   const applyPracticeSettings = (settings: PreflopPracticeSettings) => {
@@ -237,6 +267,19 @@ export default function PreflopPracticePage() {
               <span className="status-pill">{round.lastFeedback.handKey}</span>
             </div>
             <OptionBars options={round.lastFeedback.options} selectedAction={round.lastFeedback.action} />
+          </section>
+        )}
+
+        {sessionReview && round.lastFeedback && (
+          <section className="panel study-review-panel">
+            <div>
+              <span className="label">{sessionReview.eyebrow}</span>
+              <h3>{sessionReview.title}</h3>
+              <p>{sessionReview.message}</p>
+            </div>
+            <button className="secondary" onClick={() => chooseSpot(round.lastFeedback!.spotId)} type="button">
+              Practice this spot
+            </button>
           </section>
         )}
 

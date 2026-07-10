@@ -9,7 +9,7 @@ The MVP lets you drill bundled 100bb HU preflop ranges, play simplified 100bb SB
 - Frontend: React, Vite, TypeScript
 - Backend: FastAPI, Python, SQLite
 - Auth: Supabase Auth JWTs
-- Background jobs: local worker loop inside the backend process
+- Background jobs: local worker loop by default, with a standalone worker entry point for deployment
 - Solver: Shark v2.6.0 local worker for accurate postflop analysis
 
 ## Local Setup
@@ -36,6 +36,37 @@ The backend creates `backend/data/poker_trainer.sqlite3` on first startup and se
 
 - one sample preflop range
 - one completed sample hand
+
+For a managed deployment, run migrations as a release step and set
+`POKER_TRAINER_SCHEMA_MANAGED=1` so API startup does not mutate the schema:
+
+```powershell
+python -m alembic upgrade head
+python -m alembic check
+```
+
+SQLite remains the default for local convenience; production should use a
+PostgreSQL `POKER_TRAINER_DB_URL` and a dedicated migration job.
+
+Example PostgreSQL URL:
+
+```text
+postgresql+psycopg://trainer_user:password@db.example.com:5432/poker_trainer
+```
+
+For a separate API and worker process, disable the API's local worker and start
+the worker from a second terminal:
+
+```powershell
+# API terminal
+$env:POKER_TRAINER_WORKER_AUTOSTART='0'
+python -m uvicorn app.main:app --host 127.0.0.1 --port 8000
+
+# Worker terminal
+python -m app.worker
+```
+
+Both processes must use the same `POKER_TRAINER_DB_URL` and solver settings.
 
 Health check:
 
@@ -187,3 +218,6 @@ npm run test:cards
 npm run test:play-page
 npm run build
 ```
+
+Operational checks and local SQLite backup/restore helpers are documented in
+[`docs/operations.md`](docs/operations.md).

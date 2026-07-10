@@ -9,7 +9,7 @@ from sqlalchemy.orm import Session
 
 from app.auth import AuthUser, require_current_user
 from app.db import get_db
-from app.models import AnalysisJob, Hand, utc_now
+from app.models import AnalysisJob, DecisionFact, Hand, utc_now
 from app.schemas import (
     StatsAccuracyRow,
     StatsAnalyzed,
@@ -24,6 +24,7 @@ from app.schemas import (
 router = APIRouter(prefix="/api/stats", tags=["stats"])
 
 CORRECT_POSTFLOP_VERDICTS = {"correct", "mixed", "ok"}
+MINIMUM_LEAK_SAMPLE = 5
 POSITION_ORDER = {"SB": 0, "BB": 1}
 STREET_ORDER = {"flop": 0, "turn": 1, "river": 2}
 
@@ -40,7 +41,26 @@ def get_my_stats(
     preflop_results: list[dict[str, Any]] = []
     recent_preflop_results: list[dict[str, Any]] = []
     postflop_results: list[tuple[dict[str, Any], dict[str, Any] | None]] = []
+    fact_rows = (
+        db.query(DecisionFact)
+        .filter(DecisionFact.analysis_job_id.in_([job.id for job in ready_jobs]))
+        .order_by(DecisionFact.id.asc())
+        .all()
+        if ready_jobs
+        else []
+    )
+    facts_by_job: dict[int, list[DecisionFact]] = defaultdict(list)
+    for fact in fact_rows:
+        facts_by_job[fact.analysis_job_id].append(fact)
     for job in ready_jobs:
+        if facts_by_job.get(job.id):
+            job_preflop = [_preflop_result_from_fact(fact) for fact in facts_by_job[job.id] if fact.street == "preflop"]
+            job_postflop = [(_postflop_result_from_fact(fact), None) for fact in facts_by_job[job.id] if fact.street != "preflop"]
+            preflop_results.extend(job_preflop)
+            if is_recent(job.created_at, now, days=30):
+                recent_preflop_results.extend(job_preflop)
+            postflop_results.extend(job_postflop)
+            continue
         output = job.solver_output_json or {}
         job_preflop = [result for result in output.get("preflop_results", []) if isinstance(result, dict)]
         preflop_results.extend(job_preflop)
@@ -70,6 +90,7 @@ def get_my_stats(
         overall=StatsOverview(hands_played=len(hands)),
         analyzed=StatsAnalyzed(
             hands_analyzed=len(ready_jobs),
+            sample_size=len(ready_jobs),
             preflop_decisions_reviewed=preflop_decisions,
             preflop_correct=preflop_correct,
             preflop_accuracy=ratio(preflop_correct, preflop_decisions),
@@ -200,6 +221,8 @@ def preflop_mistake_label(result: dict[str, Any]) -> str:
 
 
 def is_postflop_mistake(result: dict[str, Any], largest_mistake: dict[str, Any] | None) -> bool:
+    if "correct" in result:
+        return not bool(result["correct"])
     verdict = str(result.get("verdict", "")).strip().lower()
     if largest_mistake is not None and matches_largest_mistake(result, largest_mistake):
         return True
@@ -214,12 +237,12 @@ def matches_largest_mistake(result: dict[str, Any], largest_mistake: dict[str, A
 
 
 def biggest_leak_text(preflop_by_spot: list[StatsAccuracyRow], postflop_by_street: list[StatsMistakeRow], hands_analyzed: int) -> str:
-    if hands_analyzed == 0:
-        return "Not enough analyzed hands yet."
-    weakest_preflop = next((row for row in sorted(preflop_by_spot, key=lambda row: (row.accuracy if row.accuracy is not None else 1, -row.decisions)) if row.decisions > 0 and (row.accuracy or 0) < 1), None)
+    if hands_analyzed < MINIMUM_LEAK_SAMPLE:
+        return f"Not enough data for a reliable leak yet ({hands_analyzed}/{MINIMUM_LEAK_SAMPLE} analyzed hands)."
+    weakest_preflop = next((row for row in sorted(preflop_by_spot, key=lambda row: (row.accuracy if row.accuracy is not None else 1, -row.decisions)) if row.decisions >= MINIMUM_LEAK_SAMPLE and (row.accuracy or 0) < 1), None)
     if weakest_preflop is not None:
         return f"{weakest_preflop.label} is your lowest preflop spot."
-    weakest_postflop = next((row for row in postflop_by_street if row.mistakes > 0), None)
+    weakest_postflop = next((row for row in postflop_by_street if row.decisions >= MINIMUM_LEAK_SAMPLE and row.mistakes > 0), None)
     if weakest_postflop is not None:
         return f"{weakest_postflop.label} decisions are your most common postflop issue."
     return "No major leak found in analyzed hands yet."
@@ -236,9 +259,11 @@ def recommendations(
         return [StudyRecommendation(label="Play a few hands", detail="Build a sample before stats can identify leaks.", to="/play")]
     if hands_analyzed == 0:
         return [StudyRecommendation(label="Analyze saved hands", detail="Accuracy and leak stats appear after completed analysis.", to="/analysis")]
+    if hands_analyzed < MINIMUM_LEAK_SAMPLE:
+        return [StudyRecommendation(label="Build a useful sample", detail=f"Analyze {MINIMUM_LEAK_SAMPLE - hands_analyzed} more hands before calling a leak.", to="/play")]
 
     items: list[StudyRecommendation] = []
-    weakest_preflop = next((row for row in sorted(preflop_by_spot, key=lambda row: (row.accuracy if row.accuracy is not None else 1, -row.decisions)) if row.decisions > 0 and (row.accuracy or 0) < 1), None)
+    weakest_preflop = next((row for row in sorted(preflop_by_spot, key=lambda row: (row.accuracy if row.accuracy is not None else 1, -row.decisions)) if row.decisions >= MINIMUM_LEAK_SAMPLE and (row.accuracy or 0) < 1), None)
     if weakest_preflop is not None:
         items.append(
             StudyRecommendation(
@@ -247,7 +272,7 @@ def recommendations(
                 to="/preflop",
             )
         )
-    weakest_postflop = next((row for row in postflop_by_street if row.mistakes > 0), None)
+    weakest_postflop = next((row for row in postflop_by_street if row.decisions >= MINIMUM_LEAK_SAMPLE and row.mistakes > 0), None)
     if weakest_postflop is not None:
         items.append(
             StudyRecommendation(
@@ -297,3 +322,26 @@ def float_or_zero(value: Any) -> float:
         return float(value)
     except (TypeError, ValueError):
         return 0.0
+
+
+def _preflop_result_from_fact(fact: DecisionFact) -> dict[str, Any]:
+    return {
+        "actor": fact.position,
+        "correct": fact.correct,
+        "hero_action": fact.hero_action,
+        "options": fact.options_json,
+        "spot_id": fact.spot_id,
+        "spot_name": fact.spot_id,
+        "street": "preflop",
+    }
+
+
+def _postflop_result_from_fact(fact: DecisionFact) -> dict[str, Any]:
+    return {
+        "best_action": fact.best_action,
+        "hero_action": fact.hero_action,
+        "node": fact.spot_id,
+        "street": fact.street,
+        "verdict": "correct" if fact.correct else "mistake",
+        "correct": fact.correct,
+    }

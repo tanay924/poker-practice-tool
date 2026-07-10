@@ -5,8 +5,12 @@ import os
 import re
 from typing import Annotated, Any
 
-from fastapi import Depends, Header, HTTPException, status
+from fastapi import Cookie, Depends, Header, HTTPException, status
 from jwt import PyJWKClient, PyJWTError, decode
+
+from app.db import get_db
+from app.guest_sessions import GUEST_SESSION_COOKIE, resolve_guest_session
+from sqlalchemy.orm import Session
 
 
 @dataclass(frozen=True)
@@ -39,10 +43,19 @@ def require_current_user(authorization: Annotated[str | None, Header()] = None) 
 def require_actor(
     authorization: Annotated[str | None, Header()] = None,
     x_guest_session: Annotated[str | None, Header()] = None,
+    guest_session_cookie: Annotated[str | None, Cookie(alias=GUEST_SESSION_COOKIE)] = None,
+    db: Session = Depends(get_db),
 ) -> RequestActor:
     current_user = current_user_from_authorization(authorization)
     if current_user is not None:
         return RequestActor(user_id=current_user.user_id)
+    if guest_session_cookie is not None:
+        guest_session = resolve_guest_session(db, guest_session_cookie)
+        if guest_session is None:
+            raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid or expired guest session")
+        return RequestActor(guest_session_id=guest_session.session_id)
+    if x_guest_session and not _legacy_guest_header_allowed():
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Server-issued guest session required")
     guest_session_id = _clean_guest_session_id(x_guest_session)
     if guest_session_id is not None:
         return RequestActor(guest_session_id=guest_session_id)
@@ -127,6 +140,13 @@ def _bearer_token(authorization: str | None) -> str | None:
 def _admin_user_ids() -> set[str]:
     raw = os.getenv("POKER_TRAINER_ADMIN_USER_IDS", "")
     return {user_id.strip() for user_id in raw.split(",") if user_id.strip()}
+
+
+def _legacy_guest_header_allowed() -> bool:
+    configured = os.getenv("POKER_TRAINER_ALLOW_LEGACY_GUEST_HEADER")
+    if configured is not None:
+        return configured.strip().lower() in {"1", "true", "yes"}
+    return os.getenv("ENVIRONMENT", "local").strip().lower() in {"local", "development", "test"}
 
 
 GUEST_SESSION_PATTERN = re.compile(r"^[A-Za-z0-9_-]{20,96}$")

@@ -12,7 +12,7 @@ from sqlalchemy.pool import StaticPool
 from app.auth import AuthUser, require_current_user
 from app.db import Base, get_db
 from app.main import app
-from app.models import AnalysisJob, Hand, utc_now
+from app.models import AnalysisJob, DecisionFact, Hand, utc_now
 
 
 def hand_payload(hero_cards: str = "AsKd") -> dict[str, object]:
@@ -200,3 +200,52 @@ def test_stats_split_overall_hands_from_analyzed_accuracy(api_client: tuple[Test
     assert payload["recent"]["hands_played_30d"] == 2
     assert payload["recent"]["hands_analyzed_30d"] == 1
     assert payload["recommendations"][0]["to"] in ["/preflop", "/analysis", "/play"]
+
+
+def test_stats_prefer_derived_decision_facts_when_available(api_client: tuple[TestClient, sessionmaker[Session]]) -> None:
+    client, TestingSession = api_client
+    with TestingSession() as db:
+        hand = Hand(user_id="user-facts", **hand_payload("AsKd"))
+        db.add(hand)
+        db.commit()
+        db.refresh(hand)
+        job = AnalysisJob(
+            hand_id=hand.id,
+            user_id="user-facts",
+            status="ready",
+            solver_output_json={
+                "preflop_results": [{"actor": "SB", "correct": True, "hero_action": "raise", "options": {"raise": 1}}],
+                "street_results": [],
+                "summary": {},
+            },
+        )
+        db.add(job)
+        db.commit()
+        db.refresh(job)
+        db.add(
+            DecisionFact(
+                analysis_job_id=job.id,
+                hand_id=hand.id,
+                user_id="user-facts",
+                decision_key="preflop:0",
+                street="preflop",
+                position="SB",
+                spot_id="SB open",
+                hero_action="fold",
+                best_action="raise",
+                correct=False,
+                mistake_class="folded_valid_continue",
+                options_json={"fold": 0.0, "raise": 1.0},
+                occurred_at=job.created_at,
+            )
+        )
+        db.commit()
+
+    set_user("user-facts")
+    response = client.get("/api/stats/me")
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["analyzed"]["preflop_correct"] == 0
+    assert payload["analyzed"]["preflop_accuracy"] == 0.0
+    assert payload["preflop_mistake_types"] == [{"label": "Folded a valid continue", "count": 1}]

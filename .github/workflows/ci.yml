@@ -1,0 +1,52 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  backend:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install backend dependencies
+        run: python -m pip install -r backend/requirements.txt
+      - name: Test backend
+        working-directory: backend
+        run: python -m pytest -q
+      - name: Verify fresh migration
+        env:
+          POKER_TRAINER_DB_URL: sqlite:///./backend/data/ci-migration.sqlite3
+        run: |
+          python -m alembic upgrade head
+          python -m alembic check
+
+  frontend:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - name: Install frontend dependencies
+        working-directory: frontend
+        run: npm ci
+      - name: Run frontend tests
+        working-directory: frontend
+        run: |
+          npm run test:poker
+          npm run test:preflop
+          npm run test:cards
+          npm run test:table-layout
+          npm run test:settlement
+          npm run test:play-page
+          npm run test:study-pages
+          npm run test:analysis-detail
+      - name: Build frontend
+        working-directory: frontend
+        run: npm run build

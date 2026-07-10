@@ -62,6 +62,8 @@ async def seed_database(db: Session) -> None:
                 spot=parsed.spot,
                 stack_bb=parsed.stack_bb,
                 source="seed",
+                version="bundled-hu-100bb-v1",
+                provenance="Local Poker Trainer bundled sample range; replace with reviewed provenance before public redistribution.",
                 range_json=parsed.model_dump(),
             )
         )

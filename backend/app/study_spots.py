@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import os
 from typing import Any
 
 from sqlalchemy.orm import Session
@@ -91,6 +92,7 @@ def extract_study_spot_payloads(
                     "confidence": None,
                     "solver_strategy": numeric_strategy(result.get("options", {})),
                 },
+                **study_spot_publication_fields(hand),
             }
         )
 
@@ -128,6 +130,7 @@ def extract_study_spot_payloads(
                     "confidence": result.get("confidence") if isinstance(result.get("confidence"), str) else None,
                     "solver_strategy": numeric_strategy(result.get("solver_strategy", {})),
                 },
+                **study_spot_publication_fields(hand),
             }
         )
     return payloads
@@ -137,7 +140,13 @@ def similar_spots(db: Session, source: StudySpot, *, limit: int = 5) -> list[Stu
     source_tags = set(source.tags_json)
     candidates = (
         db.query(StudySpot)
-        .filter(StudySpot.id != source.id, StudySpot.source_hand_id != source.source_hand_id, StudySpot.street == source.street)
+        .filter(
+            StudySpot.id != source.id,
+            StudySpot.source_hand_id != source.source_hand_id,
+            StudySpot.street == source.street,
+            StudySpot.visibility == "curated_public",
+            StudySpot.quality_status == "validated",
+        )
         .order_by(StudySpot.created_at.desc(), StudySpot.id.desc())
         .limit(300)
         .all()
@@ -265,3 +274,10 @@ def compact_tags(tags: list[str]) -> list[str]:
         seen.add(normalized)
         result.append(normalized)
     return result
+
+
+def study_spot_publication_fields(hand: Hand) -> dict[str, str]:
+    public_enabled = os.getenv("POKER_TRAINER_PUBLIC_STUDY_SPOTS_ENABLED", "1").strip().lower() not in {"0", "false", "no"}
+    if public_enabled:
+        return {"visibility": "curated_public", "provenance": "synthetic" if hand.user_id is None else "user_contributed", "quality_status": "validated"}
+    return {"visibility": "private", "provenance": "user_private", "quality_status": "pending"}

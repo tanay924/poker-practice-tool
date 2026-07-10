@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState, type FormEvent } from "react";
 import { Link } from "react-router-dom";
 
-import { acceptFriendRequest, declineFriendRequest, listFriendRequests, listFriends, sendFriendRequest } from "../api";
+import { acceptFriendRequest, blockUser, declineFriendRequest, listFriendRequests, listFriends, removeFriend, sendFriendRequest } from "../api";
 import { profileLabelFromUserMetadata } from "../auth/accountProfile";
 import { useAuth } from "../auth/AuthContext";
 import type { FriendRead, FriendRequestRead } from "../types";
@@ -111,6 +111,37 @@ export default function FriendsPage() {
     }
   };
 
+  const deleteFriend = async (friend: FriendRead) => {
+    if (!accessToken || !window.confirm(`Remove ${friend.username} and revoke shared hands?`)) {
+      return;
+    }
+    setError(null);
+    setMessage(null);
+    try {
+      await removeFriend(friend.user_id, accessToken);
+      setMessage(`${friend.username} removed.`);
+      setRefreshIndex((value) => value + 1);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Could not remove friend.");
+    }
+  };
+
+  const blockUsername = async () => {
+    if (!accessToken || !username.trim() || !window.confirm(`Block ${username.trim()}? This also revokes friendship and shared hands.`)) {
+      return;
+    }
+    setError(null);
+    setMessage(null);
+    try {
+      await blockUser(username, accessToken);
+      setUsername("");
+      setMessage("User blocked.");
+      setRefreshIndex((value) => value + 1);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Could not block user.");
+    }
+  };
+
   return (
     <section className="stack social-page">
       <div className="page-heading">
@@ -135,6 +166,9 @@ export default function FriendsPage() {
           </label>
           <button disabled={submitting || !username.trim()} type="submit">
             {submitting ? "Sending..." : "Send request"}
+          </button>
+          <button className="secondary" disabled={submitting || !username.trim()} onClick={() => void blockUsername()} type="button">
+            Block user
           </button>
         </form>
         {message && <p className="success-text">{message}</p>}
@@ -188,6 +222,9 @@ export default function FriendsPage() {
                   <strong>{friend.username}</strong>
                   <span>can receive shared hands</span>
                 </div>
+                <button className="action-danger compact-button" onClick={() => void deleteFriend(friend)} type="button">
+                  Remove
+                </button>
               </article>
             ))}
           </div>

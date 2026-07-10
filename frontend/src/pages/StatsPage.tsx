@@ -85,6 +85,7 @@ export default function StatsPage() {
             <div className="stats-card-grid">
               <MetricCard label="Hands played" value={stats.overall.hands_played} />
               <MetricCard label="Hands analysed" value={stats.analyzed.hands_analyzed} />
+              <MetricCard label="Analysis sample" value={stats.analyzed.sample_size} />
               <MetricCard label="Preflop accuracy" value={formatStatsPercent(stats.analyzed.preflop_accuracy)} />
               <MetricCard label="Postflop mistakes" value={stats.analyzed.postflop_mistakes} />
             </div>

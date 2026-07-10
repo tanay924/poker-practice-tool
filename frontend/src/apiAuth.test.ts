@@ -5,6 +5,7 @@ import { requestInitWithAuth } from "./api";
 assert.deepEqual(requestInitWithAuth(undefined).headers, {
   "Content-Type": "application/json"
 });
+assert.equal(requestInitWithAuth(undefined).credentials, "include");
 
 assert.deepEqual(requestInitWithAuth("token-123").headers, {
   Authorization: "Bearer token-123",
@@ -29,7 +30,8 @@ assert.deepEqual(
       "Content-Type": "application/json",
       "X-Test": "yes"
     },
-    method: "POST"
+    method: "POST",
+    credentials: "include"
   }
 );
 

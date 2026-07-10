@@ -24,6 +24,7 @@ assert.deepEqual(
   playGuideSteps().map((step) => step.title),
   ["Choose seat", "Play decisions", "Review leaks"]
 );
+assert.equal(playGuideSteps()[2]?.detail, "Finish the hand, then review the feedback.");
 
 assert.deepEqual(analysisEmptyState({ hasItems: false, hasQuery: false }), {
   actionLabel: "Play a hand",

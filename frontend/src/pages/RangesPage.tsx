@@ -42,6 +42,10 @@ export default function RangesPage() {
           );
         })}
       </div>
+      <div className="notice-box">
+        <span className="label">Range set</span>
+        <p>Bundled heads-up 100bb ranges, version hu-100bb-bundled-v1. Review provenance before any public redistribution.</p>
+      </div>
 
       <div className="range-tabs panel" role="tablist" aria-label="Range spot">
         {tabs.map((tab) => (

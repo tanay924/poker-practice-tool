@@ -7,7 +7,7 @@ from app.auth import RequestActor, require_actor
 from app.db import get_db
 from app.models import Hand, SharedHand, StudySpot
 from app.schemas import SimilarStudySpotsRead, StudySpotSourceRead
-from app.study_spots import backfill_study_spots, similar_spots, study_spot_read
+from app.study_spots import similar_spots, study_spot_read
 
 router = APIRouter(prefix="/api/study-spots", tags=["study-spots"])
 
@@ -25,7 +25,6 @@ def get_similar_study_spots(
     if hand is None:
         raise HTTPException(status_code=404, detail="Hand not found")
 
-    backfill_study_spots(db)
     source = source_spot(db, hand.id, street, node)
     if source is None:
         raise HTTPException(status_code=404, detail="Study spot not found")

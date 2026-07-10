@@ -1,7 +1,7 @@
 import { useEffect, useState, type FormEvent } from "react";
-import { Link, useParams, useSearchParams } from "react-router-dom";
+import { Link, useNavigate, useParams, useSearchParams } from "react-router-dom";
 
-import { getAnalysis, listSimilarStudySpots, shareHand } from "../api";
+import { deleteHand, getAnalysis, listSimilarStudySpots, retryAnalysis, shareHand } from "../api";
 import { useAuth } from "../auth/AuthContext";
 import PlayingCard from "../components/PlayingCard";
 import { getOrCreateGuestSessionId } from "../guestTrial";
@@ -29,8 +29,11 @@ export default function AnalysisDetailPage() {
   const [shareMessage, setShareMessage] = useState<string | null>(null);
   const [shareError, setShareError] = useState<string | null>(null);
   const [sharing, setSharing] = useState(false);
+  const [retrying, setRetrying] = useState(false);
+  const [deleting, setDeleting] = useState(false);
   const [similarSpotsByKey, setSimilarSpotsByKey] = useState<Record<string, SimilarSpotState>>({});
   const viewingSharedHand = searchParams.get("shared") === "1";
+  const navigate = useNavigate();
 
   useEffect(() => {
     if (!handId) {
@@ -115,6 +118,38 @@ export default function AnalysisDetailPage() {
       });
   };
 
+  const retry = async () => {
+    if (!detail || viewingSharedHand) {
+      return;
+    }
+    const auth = accessToken ? accessToken : { guestSessionId: getOrCreateGuestSessionId() };
+    setRetrying(true);
+    setError(null);
+    try {
+      const job = await retryAnalysis(detail.hand.id, auth);
+      setDetail((current) => current ? { ...current, job } : current);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Could not retry this analysis.");
+    } finally {
+      setRetrying(false);
+    }
+  };
+
+  const remove = async () => {
+    if (!detail || viewingSharedHand || !window.confirm("Delete this hand and its analysis? This cannot be undone.")) {
+      return;
+    }
+    const auth = accessToken ? accessToken : { guestSessionId: getOrCreateGuestSessionId() };
+    setDeleting(true);
+    try {
+      await deleteHand(detail.hand.id, auth);
+      navigate("/analysis", { replace: true });
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Could not delete this hand.");
+      setDeleting(false);
+    }
+  };
+
   return (
     <section className="stack">
       <Link className="back-link" to={viewingSharedHand ? "/shared" : "/analysis"}>
@@ -125,6 +160,18 @@ export default function AnalysisDetailPage() {
         <p className="eyebrow">Hand #{detail.hand.id}</p>
         <h2>Answer Sheet</h2>
         <p className="answer-result-line">{resultText}</p>
+        {!viewingSharedHand && (
+          <div className="inline-action-row">
+            {(detail.job?.status === "failed" || detail.job?.status === "unsupported" || detail.job?.status === "cancelled") && (
+              <button className="secondary compact-button" disabled={retrying} onClick={() => void retry()} type="button">
+                {retrying ? "Retrying..." : "Try analysis again"}
+              </button>
+            )}
+            <button className="action-danger compact-button" disabled={deleting} onClick={() => void remove()} type="button">
+              {deleting ? "Deleting..." : "Delete hand"}
+            </button>
+          </div>
+        )}
       </div>
 
       {!user && authConfigured && (
@@ -425,8 +472,9 @@ function SimilarStudySpotsPanel({ state }: { state: SimilarSpotState }) {
   return (
     <div className="similar-spots-panel">
       <div className="similar-spots-heading">
-        <span className="label">Anonymized solved spots</span>
-        <p>{formatSpotTags(state.result.source.tags).slice(0, 4).join(" / ")}</p>
+        <span className="label">Active recall queue</span>
+        <p>Decide what you would do before revealing the solved line.</p>
+        <p className="muted-text">{formatSpotTags(state.result.source.tags).slice(0, 4).join(" / ")}</p>
       </div>
       <div className="similar-spot-list">
         {state.result.spots.map((spot, index) => (
@@ -438,6 +486,8 @@ function SimilarStudySpotsPanel({ state }: { state: SimilarSpotState }) {
 }
 
 function SimilarStudySpotCard({ spot }: { spot: StudySpotRead }) {
+  const [revealed, setRevealed] = useState(false);
+
   return (
     <article className="similar-spot-card">
       <div>
@@ -448,15 +498,40 @@ function SimilarStudySpotCard({ spot }: { spot: StudySpotRead }) {
       <div className="similar-spot-tags">
         {formatSpotTags(spot.tags).slice(0, 5).map((tag) => <span key={tag}>{tag}</span>)}
       </div>
-      <p>
-        Hero chose <strong>{spot.hero_action}</strong>. Solver prefers <strong>{spot.best_action}</strong>
-        {spot.confidence ? ` (${spot.confidence} confidence).` : "."}
-      </p>
-      <p className="muted-text">{formatStrategySummary(spot.solver_strategy)}</p>
-      {spot.line.length > 0 && (
-        <ol className="similar-spot-line">
-          {spot.line.map((entry, index) => <li key={`${entry}-${index}`}>{entry}</li>)}
-        </ol>
+      {!revealed ? (
+        <>
+          <p className="study-prompt">Pause here and choose your action before checking the solution.</p>
+          <button
+            aria-expanded={false}
+            className="secondary compact-button"
+            onClick={() => setRevealed(true)}
+            type="button"
+          >
+            Reveal solution
+          </button>
+        </>
+      ) : (
+        <div className="study-reveal">
+          <span className="label">Solved line</span>
+          <p>
+            Hero chose <strong>{spot.hero_action}</strong>. Solver prefers <strong>{spot.best_action}</strong>
+            {spot.confidence ? ` (${spot.confidence} confidence).` : "."}
+          </p>
+          <p className="muted-text">{formatStrategySummary(spot.solver_strategy)}</p>
+          {spot.line.length > 0 && (
+            <ol className="similar-spot-line">
+              {spot.line.map((entry, index) => <li key={`${entry}-${index}`}>{entry}</li>)}
+            </ol>
+          )}
+          <button
+            aria-expanded={true}
+            className="secondary compact-button"
+            onClick={() => setRevealed(false)}
+            type="button"
+          >
+            Hide solution
+          </button>
+        </div>
       )}
     </article>
   );

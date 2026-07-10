@@ -7,7 +7,7 @@ export interface AnalysisFilterState {
   status: AnalysisStatusFilter;
 }
 
-const ANALYSIS_STATUSES: AnalysisStatus[] = ["ready", "queued", "solving", "failed", "unsupported"];
+const ANALYSIS_STATUSES: AnalysisStatus[] = ["ready", "queued", "solving", "failed", "unsupported", "cancelled"];
 
 export function filterAnalysisItems(items: AnalysisListItem[], filters: AnalysisFilterState): AnalysisListItem[] {
   const normalizedQuery = normalize(filters.query);
@@ -29,7 +29,8 @@ export function analysisStatusCounts(items: AnalysisListItem[]): Record<Analysis
     queued: 0,
     ready: 0,
     solving: 0,
-    unsupported: 0
+    unsupported: 0,
+    cancelled: 0
   };
   for (const item of items) {
     counts[item.status] += 1;
