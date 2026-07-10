@@ -1,4 +1,4 @@
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 
 import type { PreflopAction } from "../preflop/engine";
 import { listBundledPreflopRanges, type BundledPreflopRange } from "../preflop/rangeData";
@@ -11,17 +11,24 @@ import {
   segmentSummary,
   type RangeActionSegment
 } from "../preflop/rangeMatrix";
+import { rangePageIntro } from "./beginnerUx";
+import { rangeTabItems, selectedRangeForSpot } from "./rangeStudyNavigation";
 
 const ACTION_ORDER: PreflopAction[] = ["fold", "check", "limp", "call", "raise", "allin"];
 
 export default function RangesPage() {
   const ranges = useMemo(() => listBundledPreflopRanges(), []);
+  const tabs = useMemo(() => rangeTabItems(ranges), [ranges]);
+  const [selectedSpot, setSelectedSpot] = useState<string>(() => ranges[0]?.spot ?? "");
+  const selectedRange = selectedRangeForSpot(ranges, selectedSpot);
+  const intro = rangePageIntro();
 
   return (
     <section className="stack range-study-page">
       <div className="page-heading">
-        <p className="eyebrow">Bundled 100bb HU cash ranges</p>
-        <h2>Ranges</h2>
+        <p className="eyebrow">{intro.eyebrow}</p>
+        <h2>{intro.title}</h2>
+        <p className="page-subtitle">{intro.subtitle}</p>
       </div>
 
       <div className="range-legend panel">
@@ -35,11 +42,29 @@ export default function RangesPage() {
           );
         })}
       </div>
+      <div className="notice-box">
+        <span className="label">Range set</span>
+        <p>Bundled heads-up 100bb ranges, version hu-100bb-bundled-v1. Review provenance before any public redistribution.</p>
+      </div>
+
+      <div className="range-tabs panel" role="tablist" aria-label="Range spot">
+        {tabs.map((tab) => (
+          <button
+            aria-selected={selectedRange?.spot === tab.spot}
+            className={selectedRange?.spot === tab.spot ? "active secondary" : "secondary"}
+            key={tab.spot}
+            onClick={() => setSelectedSpot(tab.spot)}
+            role="tab"
+            type="button"
+          >
+            <span>{tab.title}</span>
+            <small>{tab.stackBb}bb</small>
+          </button>
+        ))}
+      </div>
 
       <div className="range-table-stack">
-        {ranges.map((range) => (
-          <RangeChart key={range.spot} range={range} />
-        ))}
+        {selectedRange && <RangeChart key={selectedRange.spot} range={selectedRange} />}
       </div>
     </section>
   );

@@ -1,30 +1,59 @@
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 
-import { analyzeHand, getAnalysis, saveHand } from "../api";
+import { analyzeHand, getAnalysis, getGuestSessionAllowance, saveHand } from "../api";
+import { useAuth } from "../auth/AuthContext";
 import PlayingCard from "../components/PlayingCard";
 import SettlementSummaryPanel from "../components/SettlementSummaryPanel";
+import { getOrCreateGuestSessionId, guestTrialSnapshot, guestTrialSnapshotFromRemaining, recordGuestTrialUse, type GuestTrialSnapshot } from "../guestTrial";
 import type { AnalysisJob, HandRead } from "../types";
 import { applyHeroAction, formatActionEntry, legalHeroActions, startNewHand, toHandPayload, type SeatMode, type TrainerAction } from "../poker/engine";
 import { settlementForTrainerState } from "../poker/settlement";
 import { shouldRevealOpponentCards } from "../poker/visibility";
 import { formatBb } from "../settlement";
-import { analysisControlFor } from "./playAnalysisControl";
+import { playGuideSteps } from "./beginnerUx";
+import { analysisControlFor, nextPlayAnalysisStateAfterAnalyzeSuccess, nextPlayAnalysisStateAfterRefresh } from "./playAnalysisControl";
+import { playShortcutForAction, resolvePlayShortcut } from "./playActionShortcuts";
+import { playCompletionMessage, playCompletionPrimaryAction } from "./playCompletionCopy";
 
 const SEAT_MODE_STORAGE_KEY = "poker-trainer-seat-mode";
 const SEAT_MODES: SeatMode[] = ["random", "SB", "BB"];
 
 export default function PlayPage() {
+  const { accessToken, authConfigured, loading: authLoading, user } = useAuth();
   const initialSeatMode = readSeatMode();
   const [seatMode, setSeatMode] = useState<SeatMode>(initialSeatMode);
   const [hand, setHand] = useState(() => startNewHand({ seatMode: initialSeatMode }));
   const [savedHand, setSavedHand] = useState<HandRead | null>(null);
   const [analysisJob, setAnalysisJob] = useState<AnalysisJob | null>(null);
+  const [guestAnalysisTrial, setGuestAnalysisTrial] = useState<GuestTrialSnapshot>(() => readGuestAnalysisTrial());
   const [saveAttempted, setSaveAttempted] = useState(false);
+  const [saveIdempotencyKey, setSaveIdempotencyKey] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  useEffect(() => {
+    if (authLoading || user) {
+      return;
+    }
+    let cancelled = false;
+    getGuestSessionAllowance()
+      .then((allowance) => {
+        if (!cancelled) {
+          setGuestAnalysisTrial(guestTrialSnapshotFromRemaining(allowance.analysis_remaining));
+        }
+      })
+      .catch(() => undefined);
+    return () => {
+      cancelled = true;
+    };
+  }, [authLoading, user]);
+
   const legalActions = useMemo(() => legalHeroActions(hand), [hand]);
+  const actionShortcuts = useMemo(
+    () => legalActions.map((action, index) => playShortcutForAction(action, index, legalActions)),
+    [legalActions]
+  );
   const analysisControl = analysisControlFor(savedHand, analysisJob);
   const settlement = useMemo(() => settlementForTrainerState(hand), [hand]);
   const revealVillainCards = shouldRevealOpponentCards(hand.result);
@@ -32,34 +61,55 @@ export default function PlayPage() {
   const displayedHeroStack = settlement ? settlement.heroAfterBb : hand.heroStack;
   const displayedVillainStack = settlement ? settlement.opponentAfterBb : hand.villainStack;
   const displayedPot = settlement && settlement.status !== "showdown" ? 0 : hand.pot;
+  const completionState = {
+    authConfigured,
+    authLoading,
+    guestTrial: user ? null : guestAnalysisTrial,
+    isAuthenticated: Boolean(user && accessToken),
+    savedHandId: savedHand?.id ?? null,
+    saving
+  };
+  const completionAuthAction = playCompletionPrimaryAction(completionState);
 
   useEffect(() => {
-    if (!hand.handOver || saveAttempted) {
+    if (!hand.handOver || saveAttempted || authLoading) {
       return;
     }
 
     setSaveAttempted(true);
+    const idempotencyKey = saveIdempotencyKey ?? createIdempotencyKey();
+    if (!saveIdempotencyKey) {
+      setSaveIdempotencyKey(idempotencyKey);
+    }
+    const auth = accessToken ? accessToken : { guestSessionId: getOrCreateGuestSessionId() };
+    if (!accessToken && guestAnalysisTrial.limitReached) {
+      return;
+    }
+
     setSaving(true);
-    saveHand(toHandPayload(hand))
+    saveHand(toHandPayload(hand), auth, idempotencyKey)
       .then((created) => {
         setSavedHand(created);
         setError(null);
       })
       .catch((err: Error) => setError(err.message))
       .finally(() => setSaving(false));
-  }, [hand, saveAttempted]);
+  }, [accessToken, authLoading, guestAnalysisTrial.limitReached, hand, saveAttempted, saveIdempotencyKey]);
 
   useEffect(() => {
     if (!savedHand) {
       return;
     }
 
+    const auth = accessToken ? accessToken : { guestSessionId: getOrCreateGuestSessionId() };
     let cancelled = false;
     const refresh = () => {
-      getAnalysis(savedHand.id)
+      getAnalysis(savedHand.id, auth)
         .then((detail) => {
           if (!cancelled) {
-            setAnalysisJob(detail.job);
+            const next = nextPlayAnalysisStateAfterRefresh({ analysisJob: null, error: null }, detail);
+            setAnalysisJob(next.analysisJob);
+            setError(next.error);
           }
         })
         .catch(() => undefined);
@@ -71,27 +121,64 @@ export default function PlayPage() {
       cancelled = true;
       window.clearInterval(interval);
     };
-  }, [savedHand]);
+  }, [accessToken, savedHand]);
 
-  const act = (action: TrainerAction) => {
+  const act = useCallback((action: TrainerAction) => {
     setHand((current) => applyHeroAction(current, action));
-  };
+  }, []);
 
-  const newHand = () => {
+  const newHand = useCallback(() => {
     setHand(startNewHand({ seatMode }));
     setSavedHand(null);
     setAnalysisJob(null);
     setSaveAttempted(false);
+    setSaveIdempotencyKey(null);
     setSaving(false);
     setError(null);
-  };
+  }, [seatMode]);
+
+  useEffect(() => {
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.defaultPrevented || event.altKey || event.ctrlKey || event.metaKey || shortcutTargetIsEditable(event.target)) {
+        return;
+      }
+
+      if (hand.handOver && event.key.toLowerCase() === "n") {
+        event.preventDefault();
+        newHand();
+        return;
+      }
+
+      const shortcutAction = resolvePlayShortcut(event.key, legalActions);
+      if (shortcutAction) {
+        event.preventDefault();
+        act(shortcutAction);
+      }
+    };
+
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [act, hand.handOver, legalActions, newHand]);
 
   const requestAnalysis = () => {
     if (!savedHand) {
       return;
     }
-    analyzeHand(savedHand.id)
-      .then(setAnalysisJob)
+    if (!accessToken && guestAnalysisTrial.limitReached) {
+      setError("Free analysis trial used. Sign in to analyze more hands.");
+      return;
+    }
+    const auth = accessToken ? accessToken : { guestSessionId: getOrCreateGuestSessionId() };
+    setError(null);
+    analyzeHand(savedHand.id, auth)
+      .then((job) => {
+        const next = nextPlayAnalysisStateAfterAnalyzeSuccess({ analysisJob: null, error: null }, job);
+        setAnalysisJob(next.analysisJob);
+        setError(next.error);
+        if (!accessToken) {
+          setGuestAnalysisTrial(recordGuestTrialUse("analysis"));
+        }
+      })
       .catch((err: Error) => setError(err.message));
   };
 
@@ -135,6 +222,16 @@ export default function PlayPage() {
       </div>
 
       <aside className="control-panel">
+        <div className="play-guide" aria-label="Play flow">
+          {playGuideSteps().map((step, index) => (
+            <div key={step.title}>
+              <span>{index + 1}</span>
+              <strong>{step.title}</strong>
+              <p>{step.detail}</p>
+            </div>
+          ))}
+        </div>
+
         <div className="seat-mode-control">
           <span className="label">Seat</span>
           <div className="segmented-control" role="group" aria-label="Seat mode">
@@ -158,10 +255,12 @@ export default function PlayPage() {
         </div>
 
         <div className="action-buttons">
-          {legalActions.map((action) => (
+          {legalActions.map((action, index) => (
             <button
+              aria-keyshortcuts={actionShortcuts[index]?.aria}
               className={actionButtonClass(action.action)}
               key={`${action.action}-${action.amountBb}-${action.targetAmountBb ?? ""}`}
+              title={`${action.label} (${actionShortcuts[index]?.label})`}
               type="button"
               onClick={() => act(action)}
             >
@@ -169,7 +268,7 @@ export default function PlayPage() {
             </button>
           ))}
           {hand.handOver && (
-            <button type="button" className="secondary" onClick={newHand}>
+            <button type="button" className="secondary" onClick={newHand} title="New hand (N)" aria-keyshortcuts="n">
               New hand
             </button>
           )}
@@ -180,7 +279,12 @@ export default function PlayPage() {
         {hand.handOver && (
           <div className="result-box">
             <h2>Hand complete</h2>
-            <p>{saving ? "Saving hand..." : savedHand ? `Saved as hand #${savedHand.id}` : "Waiting to save."}</p>
+            <p>{playCompletionMessage(completionState)}</p>
+            {completionAuthAction && (
+              <Link className="button-link" to={completionAuthAction.to}>
+                {completionAuthAction.label}
+              </Link>
+            )}
             {analysisControl && (
               analysisControl.mode === "view" && analysisControl.href ? (
                 <Link className="button-link" to={analysisControl.href}>
@@ -226,6 +330,28 @@ function readSeatMode(): SeatMode {
 
 function writeSeatMode(mode: SeatMode) {
   window.localStorage.setItem(SEAT_MODE_STORAGE_KEY, mode);
+}
+
+function createIdempotencyKey(): string {
+  if (typeof crypto !== "undefined" && "randomUUID" in crypto) {
+    return `hand-${crypto.randomUUID()}`;
+  }
+  return `hand-${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}`;
+}
+
+function readGuestAnalysisTrial(): GuestTrialSnapshot {
+  if (typeof window === "undefined") {
+    return { limit: 5, limitReached: false, remaining: 5, used: 0 };
+  }
+  return guestTrialSnapshot("analysis");
+}
+
+function shortcutTargetIsEditable(target: EventTarget | null): boolean {
+  if (!(target instanceof HTMLElement)) {
+    return false;
+  }
+  const tagName = target.tagName.toLowerCase();
+  return target.isContentEditable || tagName === "input" || tagName === "select" || tagName === "textarea";
 }
 
 function actionButtonClass(action: TrainerAction["action"]) {

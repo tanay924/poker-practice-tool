@@ -1,29 +1,56 @@
-import { useEffect, useState } from "react";
-import { Link, useParams } from "react-router-dom";
+import { useEffect, useState, type FormEvent } from "react";
+import { Link, useNavigate, useParams, useSearchParams } from "react-router-dom";
 
-import { getAnalysis } from "../api";
+import { deleteHand, getAnalysis, listSimilarStudySpots, retryAnalysis, shareHand } from "../api";
+import { useAuth } from "../auth/AuthContext";
 import PlayingCard from "../components/PlayingCard";
+import { getOrCreateGuestSessionId } from "../guestTrial";
 import { formatActionEntry } from "../poker/engine";
-import { shouldRevealOpponentCards as shouldRevealOpponentCardsForResult, visibleBoardForHistory } from "../poker/visibility";
-import type { AnalysisDetail } from "../types";
-import { formatResultText } from "./analysisResultText";
+import { visibleBoardForHistory } from "../poker/visibility";
+import type { AnalysisDetail, DecisionDetails, EquityDetails, PotOddsDetails, SimilarStudySpots, SolverStreetResult, StudySpotRead } from "../types";
+import { decisionDetailsAvailable, formatDetailBb, formatDetailPercent } from "./analysisDecisionDetails";
+import { formatPostflopSummaryText, formatResultText } from "./analysisResultText";
+import { shouldRevealAnalysisOpponentCards } from "./analysisVisibility";
+import { formatSpotTags, formatStrategySummary } from "./studySpotViews";
+
+interface SimilarSpotState {
+  error: string | null;
+  loading: boolean;
+  result: SimilarStudySpots | null;
+}
 
 export default function AnalysisDetailPage() {
   const { handId } = useParams();
+  const [searchParams] = useSearchParams();
+  const { accessToken, authConfigured, loading: authLoading, user } = useAuth();
   const [detail, setDetail] = useState<AnalysisDetail | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [shareUsername, setShareUsername] = useState("");
+  const [shareMessage, setShareMessage] = useState<string | null>(null);
+  const [shareError, setShareError] = useState<string | null>(null);
+  const [sharing, setSharing] = useState(false);
+  const [retrying, setRetrying] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+  const [similarSpotsByKey, setSimilarSpotsByKey] = useState<Record<string, SimilarSpotState>>({});
+  const viewingSharedHand = searchParams.get("shared") === "1";
+  const navigate = useNavigate();
 
   useEffect(() => {
     if (!handId) {
       return;
     }
-    getAnalysis(handId)
+    const auth = accessToken ? accessToken : { guestSessionId: getOrCreateGuestSessionId() };
+    getAnalysis(handId, auth)
       .then((next) => {
         setDetail(next);
         setError(null);
       })
       .catch((err: Error) => setError(err.message));
-  }, [handId]);
+  }, [accessToken, handId]);
+
+  if (authLoading) {
+    return <p className="muted-text">Checking account...</p>;
+  }
 
   if (error) {
     return <p className="error-text">{error}</p>;
@@ -41,18 +68,144 @@ export default function AnalysisDetailPage() {
   const heroCards = splitCardString(detail.hand.hero_cards);
   const villainCards = splitCardString(detail.hand.villain_cards);
   const visibleBoard = visibleBoardForHistory(detail.hand.board_json, detail.hand.action_history_json);
-  const revealOpponentCards = shouldRevealOpponentCardsForResult(detail.hand.result_json);
+  const revealOpponentCards = shouldRevealAnalysisOpponentCards(detail.hand.result_json);
   const resultText = formatResultText(detail.hand.result_json);
+  const postflopSummaryText = solverOutput
+    ? formatPostflopSummaryText({
+        preflopBlocksPostflop,
+        solverOutput,
+        visibleBoardCardCount: visibleBoard.length
+      })
+    : null;
+  const showSolverMetadata = Boolean(solverOutput?.metadata && solverOutput.postflop_status !== "skipped");
+  const submitShare = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    if (!accessToken || !detail || !shareUsername.trim()) {
+      return;
+    }
+    setSharing(true);
+    setShareMessage(null);
+    setShareError(null);
+    try {
+      await shareHand(detail.hand.id, shareUsername, accessToken);
+      setShareUsername("");
+      setShareMessage("Hand shared.");
+    } catch (err) {
+      setShareError(err instanceof Error ? err.message : "Could not share this hand.");
+    } finally {
+      setSharing(false);
+    }
+  };
+  const loadSimilarSpots = (result: SolverStreetResult, index: number) => {
+    const key = similarSpotKey(result, index);
+    setSimilarSpotsByKey((current) => ({
+      ...current,
+      [key]: { error: null, loading: true, result: current[key]?.result ?? null }
+    }));
+    const auth = accessToken ? accessToken : { guestSessionId: getOrCreateGuestSessionId() };
+    listSimilarStudySpots({ handId: detail.hand.id, node: result.node, street: result.street }, auth)
+      .then((next) => {
+        setSimilarSpotsByKey((current) => ({
+          ...current,
+          [key]: { error: null, loading: false, result: next }
+        }));
+      })
+      .catch((err: Error) => {
+        setSimilarSpotsByKey((current) => ({
+          ...current,
+          [key]: { error: err.message, loading: false, result: null }
+        }));
+      });
+  };
+
+  const retry = async () => {
+    if (!detail || viewingSharedHand) {
+      return;
+    }
+    const auth = accessToken ? accessToken : { guestSessionId: getOrCreateGuestSessionId() };
+    setRetrying(true);
+    setError(null);
+    try {
+      const job = await retryAnalysis(detail.hand.id, auth);
+      setDetail((current) => current ? { ...current, job } : current);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Could not retry this analysis.");
+    } finally {
+      setRetrying(false);
+    }
+  };
+
+  const remove = async () => {
+    if (!detail || viewingSharedHand || !window.confirm("Delete this hand and its analysis? This cannot be undone.")) {
+      return;
+    }
+    const auth = accessToken ? accessToken : { guestSessionId: getOrCreateGuestSessionId() };
+    setDeleting(true);
+    try {
+      await deleteHand(detail.hand.id, auth);
+      navigate("/analysis", { replace: true });
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Could not delete this hand.");
+      setDeleting(false);
+    }
+  };
 
   return (
     <section className="stack">
-      <Link className="back-link" to="/analysis">Back to analysis</Link>
+      <Link className="back-link" to={viewingSharedHand ? "/shared" : "/analysis"}>
+        {viewingSharedHand ? "Back to shared hands" : "Back to analysis"}
+      </Link>
 
       <div className="page-heading">
         <p className="eyebrow">Hand #{detail.hand.id}</p>
         <h2>Answer Sheet</h2>
         <p className="answer-result-line">{resultText}</p>
+        {!viewingSharedHand && (
+          <div className="inline-action-row">
+            {(detail.job?.status === "failed" || detail.job?.status === "unsupported" || detail.job?.status === "cancelled") && (
+              <button className="secondary compact-button" disabled={retrying} onClick={() => void retry()} type="button">
+                {retrying ? "Retrying..." : "Try analysis again"}
+              </button>
+            )}
+            <button className="action-danger compact-button" disabled={deleting} onClick={() => void remove()} type="button">
+              {deleting ? "Deleting..." : "Delete hand"}
+            </button>
+          </div>
+        )}
       </div>
+
+      {!user && authConfigured && (
+        <div className="panel signed-out-panel">
+          <h3>Guest answer sheet</h3>
+          <p className="muted-text">Sign in to keep future answer sheets in a private library.</p>
+          <Link className="button-link" to={`/auth?redirect=${encodeURIComponent(`/analysis/${handId ?? ""}`)}`}>Sign in</Link>
+        </div>
+      )}
+
+      {user && accessToken && !viewingSharedHand && (
+        <section className="panel social-panel share-hand-panel">
+          <div>
+            <h3>Share this hand</h3>
+            <p className="muted-text">Share by username after a friend request has been accepted.</p>
+          </div>
+          <form className="social-form" onSubmit={submitShare}>
+            <label>
+              <span className="label">Friend username</span>
+              <input
+                autoComplete="off"
+                onChange={(event) => setShareUsername(event.target.value)}
+                placeholder="Pocket Tens"
+                value={shareUsername}
+              />
+            </label>
+            <button disabled={sharing || !shareUsername.trim()} type="submit">
+              {sharing ? "Sharing..." : "Share hand"}
+            </button>
+          </form>
+          {shareMessage && <p className="success-text">{shareMessage}</p>}
+          {shareError && <p className="error-text">{shareError}</p>}
+        </section>
+      )}
 
       <section className="hand-table-snapshot" aria-label="Final table state">
         <div className="snapshot-seat snapshot-villain">
@@ -148,15 +301,15 @@ export default function AnalysisDetailPage() {
             </strong>
           </div>
         )}
-        {solverOutput?.summary.largest_mistake === null && <p className="muted-text">No large solver mistake flagged.</p>}
-        {solverOutput?.metadata && (
+        {postflopSummaryText && <p className="muted-text">{postflopSummaryText}</p>}
+        {showSolverMetadata && solverOutput?.metadata && (
           <p className="muted-text">
             Source: {solverLabel}
             {typeof solverOutput.metadata.duration_seconds === "number" ? ` - ${solverOutput.metadata.duration_seconds.toFixed(2)}s` : ""}
             {solverOutput.metadata.cache ? ` - cache ${solverOutput.metadata.cache.hit ? "hit" : "miss"}` : ""}
           </p>
         )}
-        {solverOutput?.postflop_status && solverOutput.postflop_status !== "ready" && (
+        {solverOutput?.postflop_status && !["ready", "skipped"].includes(solverOutput.postflop_status) && (
           <p className="muted-text">
             Postflop status: {solverOutput.postflop_status}
             {solverOutput.postflop_error ? ` - ${solverOutput.postflop_error}` : ""}
@@ -164,12 +317,15 @@ export default function AnalysisDetailPage() {
         )}
 
         <div className="decision-list">
-          {solverOutput?.street_results.map((result, index) => (
+          {solverOutput?.street_results.map((result, index) => {
+            const similarKey = similarSpotKey(result, index);
+            const similarState = similarSpotsByKey[similarKey] ?? { error: null, loading: false, result: null };
+            return (
             <article className="decision" key={`${result.street}-${index}`}>
               <div>
                 <span className="status-pill">{result.street}</span>
                 <h4>{result.node}</h4>
-                <p>{result.board.join(" ")} · Hero {result.hero_hand}</p>
+                <p>{result.board.join(" ")} / Hero {result.hero_hand}</p>
               </div>
               <div className="strategy-bars">
                 {Object.entries(result.solver_strategy).map(([action, frequency]) => (
@@ -184,8 +340,16 @@ export default function AnalysisDetailPage() {
                 Hero chose <strong>{result.hero_action}</strong>. Best action: <strong>{result.best_action}</strong>. Verdict:{" "}
                 <strong>{result.verdict}</strong> ({result.confidence} confidence).
               </p>
+              <DecisionDetailsPanel details={result.details} />
+              <div className="study-like-row">
+                <button className="secondary compact-button" disabled={similarState.loading} onClick={() => loadSimilarSpots(result, index)} type="button">
+                  {similarState.loading ? "Finding spots..." : "Study hands like this"}
+                </button>
+              </div>
+              <SimilarStudySpotsPanel state={similarState} />
             </article>
-          ))}
+            );
+          })}
         </div>
       </section>
 
@@ -201,6 +365,10 @@ export default function AnalysisDetailPage() {
       </section>
     </section>
   );
+}
+
+function similarSpotKey(result: SolverStreetResult, index: number) {
+  return `${result.street}-${result.node}-${index}`;
 }
 
 function formatSolverLabel(solver: { name: string; version?: string; commit?: string }) {
@@ -225,4 +393,146 @@ function splitCardString(cards: string) {
 
 function formatBb(value: number) {
   return `${Number.isInteger(value) ? value.toFixed(0) : value.toFixed(1)}bb`;
+}
+
+function DecisionDetailsPanel({ details }: { details?: DecisionDetails }) {
+  if (!decisionDetailsAvailable(details)) {
+    return null;
+  }
+
+  return (
+    <details className="decision-detail-panel" open>
+      <summary>Pot odds and equity</summary>
+      <div className="decision-detail-grid">
+        <PotOddsCard potOdds={details?.pot_odds} />
+        <EquityCard equity={details?.equity} />
+      </div>
+    </details>
+  );
+}
+
+function PotOddsCard({ potOdds }: { potOdds?: PotOddsDetails }) {
+  if (!potOdds?.available) {
+    return (
+      <div className="detail-card">
+        <span className="label">Pot odds</span>
+        <strong>Not facing a call</strong>
+        <p>Pot odds appear when Hero calls or folds to a bet.</p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="detail-card">
+      <span className="label">Pot odds</span>
+      <strong>{formatDetailPercent(potOdds.required_equity)} needed</strong>
+      <p>
+        Call {formatDetailBb(potOdds.call_amount_bb)} into a {formatDetailBb(potOdds.pot_before_call_bb)} pot.
+      </p>
+      <p>Pot if called: {formatDetailBb(potOdds.pot_if_call_bb)}</p>
+    </div>
+  );
+}
+
+function EquityCard({ equity }: { equity?: EquityDetails }) {
+  if (!equity?.available) {
+    return (
+      <div className="detail-card">
+        <span className="label">Equity</span>
+        <strong>Hidden this hand</strong>
+        <p>Exact card equity is only shown when opponent cards were revealed.</p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="detail-card">
+      <span className="label">Equity</span>
+      <strong>Hero {formatDetailPercent(equity.hero)}</strong>
+      <div className="equity-split-bar" aria-label="Hero and opponent equity">
+        <span style={{ width: formatDetailPercent(equity.hero) }} />
+        <span style={{ width: formatDetailPercent(equity.villain) }} />
+      </div>
+      <p>Opponent {formatDetailPercent(equity.villain)}</p>
+      {typeof equity.total_runouts === "number" && <p>{equity.total_runouts} runouts calculated.</p>}
+    </div>
+  );
+}
+
+function SimilarStudySpotsPanel({ state }: { state: SimilarSpotState }) {
+  if (state.error) {
+    return <p className="error-text">{state.error}</p>;
+  }
+  if (!state.result) {
+    return null;
+  }
+  if (state.result.spots.length === 0) {
+    return <p className="muted-text">No matching solved spots in the global bank yet.</p>;
+  }
+  return (
+    <div className="similar-spots-panel">
+      <div className="similar-spots-heading">
+        <span className="label">Active recall queue</span>
+        <p>Decide what you would do before revealing the solved line.</p>
+        <p className="muted-text">{formatSpotTags(state.result.source.tags).slice(0, 4).join(" / ")}</p>
+      </div>
+      <div className="similar-spot-list">
+        {state.result.spots.map((spot, index) => (
+          <SimilarStudySpotCard key={`${spot.street}-${spot.node}-${spot.hero_hand}-${index}`} spot={spot} />
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function SimilarStudySpotCard({ spot }: { spot: StudySpotRead }) {
+  const [revealed, setRevealed] = useState(false);
+
+  return (
+    <article className="similar-spot-card">
+      <div>
+        <span className="status-pill">{spot.street}</span>
+        <h5>{spot.node}</h5>
+        <p>{spot.board.length > 0 ? spot.board.join(" ") : "Preflop"} / Hero {spot.hero_hand}</p>
+      </div>
+      <div className="similar-spot-tags">
+        {formatSpotTags(spot.tags).slice(0, 5).map((tag) => <span key={tag}>{tag}</span>)}
+      </div>
+      {!revealed ? (
+        <>
+          <p className="study-prompt">Pause here and choose your action before checking the solution.</p>
+          <button
+            aria-expanded={false}
+            className="secondary compact-button"
+            onClick={() => setRevealed(true)}
+            type="button"
+          >
+            Reveal solution
+          </button>
+        </>
+      ) : (
+        <div className="study-reveal">
+          <span className="label">Solved line</span>
+          <p>
+            Hero chose <strong>{spot.hero_action}</strong>. Solver prefers <strong>{spot.best_action}</strong>
+            {spot.confidence ? ` (${spot.confidence} confidence).` : "."}
+          </p>
+          <p className="muted-text">{formatStrategySummary(spot.solver_strategy)}</p>
+          {spot.line.length > 0 && (
+            <ol className="similar-spot-line">
+              {spot.line.map((entry, index) => <li key={`${entry}-${index}`}>{entry}</li>)}
+            </ol>
+          )}
+          <button
+            aria-expanded={true}
+            className="secondary compact-button"
+            onClick={() => setRevealed(false)}
+            type="button"
+          >
+            Hide solution
+          </button>
+        </div>
+      )}
+    </article>
+  );
 }

@@ -1,6 +1,5 @@
 import type { ActionEntry, HandCreate } from "../types";
 import {
-  actionLabel as preflopActionLabel,
   handKeyFromCards,
   sampleAction,
   type ActionOption as PreflopOption,
@@ -19,6 +18,7 @@ export interface TrainerAction {
   action: CanonicalAction;
   amountBb: number;
   label: string;
+  sizeLabel?: string;
   targetAmountBb?: number;
 }
 
@@ -137,7 +137,7 @@ export function legalHeroActions(state: TrainerState): TrainerAction[] {
   const betFractions = state.street === "flop" ? [0.5, 1] : [0.33, 0.66, 1];
   return uniqueLegalActions([
     actionOption("check"),
-    ...betFractions.map((fraction) => actionOption("bet", sharkAmountForFraction(fraction, state.pot, state.heroStack)))
+    ...betFractions.map((fraction) => actionOption("bet", sharkAmountForFraction(fraction, state.pot, state.heroStack), formatPercent(fraction)))
   ]);
 }
 
@@ -320,7 +320,10 @@ function advanceAfterHeroSbOpen(state: TrainerState, action: PreflopAction): Tra
         message: "BB 3-bets to 11.5bb. SB decision."
       };
     }
-    return finishHand(afterBbAction, "villain", bbAction === "allin" ? "bb_allin_preflop" : "bb_folded_preflop");
+    if (bbAction === "allin") {
+      return finishHand(afterBbAction, "villain", "bb_allin_preflop");
+    }
+    return finishHand(afterBbAction, "hero", "villain_folded_preflop");
   }
 
   return finishHand(state, "showdown", "preflop_tree_closed");
@@ -537,7 +540,7 @@ function preflopActionOption(state: TrainerState, action: PreflopAction): Traine
     action,
     amountBb: actionState.amountBb,
     targetAmountBb: actionState.targetAmountBb,
-    label: preflopActionLabel(action)
+    label: formatAction({ action, amountBb: actionState.amountBb, targetAmountBb: actionState.targetAmountBb })
   };
 }
 
@@ -597,8 +600,9 @@ function enterStreet(state: TrainerState, street: Exclude<Street, "preflop">): T
   }
 
   if (villainCanLeadStreet(nextState, street) && rng() < 0.28) {
-    const amount = sharkAmountForFraction(street === "flop" ? 1 : rng() < 0.5 ? 0.33 : 0.66, nextState.pot, nextState.villainStack);
-    const villainAction = actionOption("bet", amount);
+    const fraction = street === "flop" ? 1 : rng() < 0.5 ? 0.33 : 0.66;
+    const amount = sharkAmountForFraction(fraction, nextState.pot, nextState.villainStack);
+    const villainAction = actionOption("bet", amount, formatPercent(fraction));
     return {
       ...addVillainAction(nextState, villainAction),
       villainStack: roundBb(nextState.villainStack - amount),
@@ -717,8 +721,9 @@ function addVillainAction(state: TrainerState, action: TrainerAction): TrainerSt
 function advanceAfterHeroOopCheck(state: TrainerState): TrainerState {
   const rng = state.rng ?? Math.random;
   if (rng() < 0.35) {
-    const amount = sharkAmountForFraction(state.street === "flop" ? 1 : rng() < 0.5 ? 0.33 : 0.66, state.pot, state.villainStack);
-    const villainAction = actionOption("bet", amount);
+    const fraction = state.street === "flop" ? 1 : rng() < 0.5 ? 0.33 : 0.66;
+    const amount = sharkAmountForFraction(fraction, state.pot, state.villainStack);
+    const villainAction = actionOption("bet", amount, formatPercent(fraction));
     return {
       ...addVillainAction(state, villainAction),
       villainStack: roundBb(state.villainStack - amount),
@@ -751,11 +756,13 @@ function appendAction(state: TrainerState, action: TrainerAction, actor: "SB" | 
   };
 }
 
-function actionOption(action: Exclude<CanonicalAction, "raise_to" | "raise" | "limp" | "allin">, amountBb = 0): TrainerAction {
+function actionOption(action: Exclude<CanonicalAction, "raise_to" | "raise" | "limp" | "allin">, amountBb = 0, sizeLabel?: string): TrainerAction {
+  const roundedAmount = roundBb(amountBb);
   return {
     action,
-    amountBb: roundBb(amountBb),
-    label: formatAction({ action, amountBb })
+    amountBb: roundedAmount,
+    label: formatAction({ action, amountBb: roundedAmount, sizeLabel }),
+    sizeLabel
   };
 }
 
@@ -784,7 +791,7 @@ function roundBb(value: number): number {
   return Math.round(value * 10) / 10;
 }
 
-function formatAction(action: Pick<TrainerAction, "action" | "amountBb" | "targetAmountBb">): string {
+function formatAction(action: Pick<TrainerAction, "action" | "amountBb" | "sizeLabel" | "targetAmountBb">): string {
   if (action.action === "check") {
     return "Check";
   }
@@ -795,6 +802,9 @@ function formatAction(action: Pick<TrainerAction, "action" | "amountBb" | "targe
     return `Call ${formatBb(action.amountBb)}`;
   }
   if (action.action === "bet") {
+    if (action.sizeLabel) {
+      return `Bet ${action.sizeLabel} (${formatBb(action.amountBb)})`;
+    }
     return `Bet ${formatBb(action.amountBb)}`;
   }
   if (action.action === "limp") {
@@ -808,6 +818,10 @@ function formatAction(action: Pick<TrainerAction, "action" | "amountBb" | "targe
 
 function formatBb(value: number): string {
   return `${Number.isInteger(value) ? value.toFixed(0) : value.toFixed(1)}bb`;
+}
+
+function formatPercent(fraction: number): string {
+  return `${Math.round(fraction * 100)}%`;
 }
 
 function legacyActionLabel(entry: ActionEntry): string {

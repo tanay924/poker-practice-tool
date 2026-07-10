@@ -71,6 +71,7 @@ def test_cache_key_changes_when_solver_settings_or_ranges_change() -> None:
     }
 
     same = compute_cache_key(dict(base))
+    same_hand_without_identity = compute_cache_key({**base, "hand_id": 99, "result": {"winner": "villain"}})
     changed_version = compute_cache_key({**base, "solver": {"name": "shark", "version": "v2.6.1"}})
     changed_settings = compute_cache_key({**base, "solver_settings": {"iterations": 200, "min_exploitability_pct": 0.1}})
     changed_range = compute_cache_key({**base, "ranges": {"range_hashes": {"sb_open": "z", "bb_call_vs_open": "b"}}})
@@ -78,6 +79,7 @@ def test_cache_key_changes_when_solver_settings_or_ranges_change() -> None:
     assert same != changed_version
     assert same != changed_settings
     assert same != changed_range
+    assert same == same_hand_without_identity
 
 
 def test_solver_input_normalizes_legacy_sizing_actions() -> None:

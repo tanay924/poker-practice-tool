@@ -44,5 +44,7 @@ assert.match(css, /\.snapshot-villain\s*{[^}]*grid-area:\s*villain[^}]*align-sel
 assert.match(css, /\.snapshot-hero\s*{[^}]*grid-area:\s*hero[^}]*align-self:\s*start/s);
 assert.match(css, /\.snapshot-board\s*{[^}]*grid-area:\s*board/s);
 assert.match(css, /\.snapshot-pot\s*{[^}]*position:\s*absolute/s);
+assert.match(css, /\.control-panel\s*>\s*\.action-buttons\s*{[^}]*position:\s*fixed/s);
+assert.match(css, /\.control-panel\s*>\s*\.action-buttons\s*{[^}]*padding:\s*10px 16px max\(10px, env\(safe-area-inset-bottom\)\)/s);
 
 console.log("table layout tests passed");

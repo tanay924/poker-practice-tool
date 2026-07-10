@@ -4,6 +4,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from pydantic import ValidationError
 from sqlalchemy.orm import Session
 
+from app.auth import AuthUser, require_admin_user
 from app.db import get_db
 from app.models import PreflopRange
 from app.ranges.parser import parse_preflop_range
@@ -13,9 +14,13 @@ router = APIRouter(prefix="/api/ranges", tags=["ranges"])
 
 
 @router.post("/import", response_model=RangeRead)
-def import_range(payload: RangeImportRequest, db: Session = Depends(get_db)) -> PreflopRange:
+def import_range(
+    payload: RangeImportRequest,
+    db: Session = Depends(get_db),
+    _admin_user: AuthUser = Depends(require_admin_user),
+) -> PreflopRange:
     try:
-        parsed = parse_preflop_range(payload.model_dump())
+        parsed = parse_preflop_range(payload.model_dump(include={"name", "spot", "stack_bb", "actions"}))
     except ValidationError as exc:
         raise HTTPException(status_code=422, detail=exc.errors()) from exc
 
@@ -24,6 +29,8 @@ def import_range(payload: RangeImportRequest, db: Session = Depends(get_db)) -> 
         spot=parsed.spot,
         stack_bb=parsed.stack_bb,
         source="json",
+        version=payload.version,
+        provenance=payload.provenance,
         range_json=parsed.model_dump(),
     )
     db.add(imported)

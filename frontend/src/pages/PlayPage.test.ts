@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 
-import { analysisControlFor } from "./playAnalysisControl";
+import { analysisControlFor, nextPlayAnalysisStateAfterRefresh } from "./playAnalysisControl";
 
 {
   assert.equal(analysisControlFor(null, null), null);
@@ -34,6 +34,18 @@ import { analysisControlFor } from "./playAnalysisControl";
     href: "/analysis/42",
     label: "View analysis",
     mode: "view"
+  });
+}
+
+{
+  const state = nextPlayAnalysisStateAfterRefresh(
+    { analysisJob: null, error: "Failed to fetch" },
+    { job: { status: "ready" } }
+  );
+
+  assert.deepEqual(state, {
+    analysisJob: { status: "ready" },
+    error: null
   });
 }
 

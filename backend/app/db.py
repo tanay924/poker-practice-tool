@@ -4,8 +4,13 @@ import os
 from pathlib import Path
 from typing import Generator
 
-from sqlalchemy import create_engine
+from sqlalchemy import create_engine, inspect, text
 from sqlalchemy.orm import DeclarativeBase, Session, sessionmaker
+
+from app.env import load_local_env
+
+
+load_local_env()
 
 
 def _database_url() -> str:
@@ -31,7 +36,10 @@ class Base(DeclarativeBase):
 def init_db() -> None:
     import app.models  # noqa: F401
 
+    if os.getenv("POKER_TRAINER_SCHEMA_MANAGED", "0").strip().lower() in {"1", "true", "yes"}:
+        return
     Base.metadata.create_all(bind=engine)
+    _ensure_runtime_columns()
 
 
 def get_db() -> Generator[Session, None, None]:
@@ -40,3 +48,78 @@ def get_db() -> Generator[Session, None, None]:
         yield db
     finally:
         db.close()
+
+
+def _ensure_runtime_columns() -> None:
+    _ensure_columns(
+        "hands",
+        {
+            "user_id": "VARCHAR(64)",
+            "guest_session_id": "VARCHAR(96)",
+            "idempotency_key": "VARCHAR(128)",
+            "idempotency_fingerprint": "VARCHAR(64)",
+        },
+    )
+    _ensure_indexes("hands", ["user_id", "guest_session_id", "idempotency_key"])
+    _ensure_unique_index("hands", "idempotency_key", "uq_hands_idempotency_key")
+    _ensure_columns(
+        "study_spots",
+        {
+            "visibility": "VARCHAR(24) DEFAULT 'curated_public' NOT NULL",
+            "provenance": "VARCHAR(32) DEFAULT 'synthetic' NOT NULL",
+            "quality_status": "VARCHAR(24) DEFAULT 'validated' NOT NULL",
+        },
+    )
+    _ensure_indexes("study_spots", ["visibility", "quality_status"])
+    _ensure_columns(
+        "preflop_ranges",
+        {
+            "version": "VARCHAR(96) DEFAULT 'unversioned' NOT NULL",
+            "provenance": "VARCHAR(240) DEFAULT 'unspecified' NOT NULL",
+        },
+    )
+    with engine.begin() as connection:
+        connection.execute(text("UPDATE preflop_ranges SET version = 'unversioned' WHERE version IS NULL"))
+        connection.execute(text("UPDATE preflop_ranges SET provenance = 'unspecified' WHERE provenance IS NULL"))
+    _ensure_columns(
+        "analysis_jobs",
+        {
+            "user_id": "VARCHAR(64)",
+            "guest_session_id": "VARCHAR(96)",
+            "queued_at": "DATETIME",
+            "claimed_at": "DATETIME",
+            "lease_expires_at": "DATETIME",
+            "heartbeat_at": "DATETIME",
+            "cancel_requested_at": "DATETIME",
+            "worker_id": "VARCHAR(96)",
+            "attempt_count": "INTEGER DEFAULT 0 NOT NULL",
+        },
+    )
+    _ensure_indexes("analysis_jobs", ["user_id", "guest_session_id", "queued_at", "lease_expires_at"])
+    with engine.begin() as connection:
+        connection.execute(text("UPDATE analysis_jobs SET queued_at = created_at WHERE queued_at IS NULL"))
+        connection.execute(text("UPDATE analysis_jobs SET attempt_count = 0 WHERE attempt_count IS NULL"))
+
+
+def _ensure_columns(table_name: str, columns: dict[str, str]) -> None:
+    inspector = inspect(engine)
+    existing = {column["name"] for column in inspector.get_columns(table_name)}
+    for column_name, column_type in columns.items():
+        if column_name not in existing:
+            with engine.begin() as connection:
+                connection.execute(text(f"ALTER TABLE {table_name} ADD COLUMN {column_name} {column_type}"))
+
+
+def _ensure_indexes(table_name: str, column_names: list[str]) -> None:
+    for column_name in column_names:
+        inspector = inspect(engine)
+        indexes = {index["name"] for index in inspector.get_indexes(table_name)}
+        index_name = f"ix_{table_name}_{column_name}"
+        if index_name not in indexes:
+            with engine.begin() as connection:
+                connection.execute(text(f"CREATE INDEX IF NOT EXISTS {index_name} ON {table_name} ({column_name})"))
+
+
+def _ensure_unique_index(table_name: str, column_name: str, index_name: str) -> None:
+    with engine.begin() as connection:
+        connection.execute(text(f"CREATE UNIQUE INDEX IF NOT EXISTS {index_name} ON {table_name} ({column_name})"))
